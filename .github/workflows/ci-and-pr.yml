@@ -1,4 +1,3 @@
-# .github/workflows/ci-and-pr.yml
 name: CI → Build ▶️ Test ▶️ PR
 
 on:
@@ -19,7 +18,11 @@ jobs:
           fetch-depth: 0
 
       - name: Build Docker image
-        run: docker build -t qgis-build:latest -f .ci/Dockerfile .
+        run: |
+          docker build \
+            -t qgis-build:latest \
+            -f .ci/Dockerfile \
+            .
 
       - name: Run CTest
         run: |
@@ -33,13 +36,26 @@ jobs:
           name: build-logs
           path: /root/QGIS/build/Testing/Temporary/LastTest.log
 
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push Docker image to GHCR
+        run: |
+          IMAGE=ghcr.io/${{ github.repository_owner }}/qgis-build:${{ github.sha }}
+          docker tag qgis-build:latest $IMAGE
+          docker push $IMAGE
+
   create_pr:
     name: Create Pull Request
     needs: build-test
     runs-on: ubuntu-22.04
     if: ${{ success() }}
     environment:
-      name: approval          # ← bloque jusqu’à approbation manuelle
+      name: approval
 
     steps:
       - name: Checkout code
@@ -58,4 +74,4 @@ jobs:
           body: |
             - Build ✅
             - Tests ✅
-            PR = validation manuelle.
+            PR ▶️▶️ validation manuelle.
