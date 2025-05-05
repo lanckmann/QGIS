@@ -2,20 +2,31 @@ name: CI → Build ▶️ Test ▶️ PR
 
 on:
   push:
-    branches: [ "issue-*" ]
+    branches:
+      - "issue-*"
   pull_request:
-    branches: [ "main" ]
+    branches:
+      - main
 
 jobs:
   build-test:
-    name: Build & Test
-    runs-on: ubuntu-22.04
+    name: Build & Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-22.04, windows-latest ]
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
 
-      - name: Install build dependencies
+      # ----------------------------
+      # 1) Installer les dépendances
+      # ----------------------------
+      - name: Install Linux deps
+        if: matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -26,37 +37,91 @@ jobs:
             libzip-dev protobuf-compiler libprotobuf-dev \
             libexiv2-dev libspatialindex-dev libqscintilla2-qt5-dev
 
+      - name: Setup MSYS2 + Windows deps
+        if: matrix.os == 'windows-latest'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: |
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-qt5
+            mingw-w64-x86_64-qt5-svg
+            mingw-w64-x86_64-qt5-serialport
+            mingw-w64-x86_64-qt5-webengine
+            mingw-w64-x86_64-gdal
+            mingw-w64-x86_64-proj
+            mingw-w64-x86_64-ccache
+            mingw-w64-x86_64-flex
+            mingw-w64-x86_64-bison
+            mingw-w64-x86_64-libzip
+            mingw-w64-x86_64-protobuf
+            mingw-w64-x86_64-exiv2
+            mingw-w64-x86_64-spatialindex
+            mingw-w64-x86_64-qscintilla2
+
+      # ----------------------------
+      # 2) Configurer & compiler
+      # ----------------------------
       - name: Configure & Build QGIS
         run: |
-          mkdir -p build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release -DWITH_QTWEBENGINE=ON
-          make -j$(nproc)
+          mkdir build && cd build
+          if [[ "${{ matrix.os }}" == "ubuntu-22.04" ]]; then
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DWITH_QTWEBENGINE=ON
+            make -j$(nproc)
+          else
+            cmake .. -G "MSYS Makefiles" -DCMAKE_BUILD_TYPE=Release
+            make -j%NUMBER_OF_PROCESSORS%
+          fi
 
+      # ----------------------------
+      # 3) Exécuter les tests
+      # ----------------------------
       - name: Run tests (CTest)
         working-directory: build
         run: ctest --output-on-failure
 
-      - name: Upload build & test logs
-        if: failure()
+      # ----------------------------
+      # 4) Packaging & artefacts
+      # ----------------------------
+      - name: Package Linux build
+        if: matrix.os == 'ubuntu-22.04'
+        working-directory: build
+        run: tar czf ../qgis-linux-${{ github.sha }}.tar.gz *
+
+      - name: Upload Linux artifact
+        if: matrix.os == 'ubuntu-22.04'
         uses: actions/upload-artifact@v4
         with:
-          name: qgis-logs
-          path: |
-            build/Testing/Temporary/LastTest.log
-            build/CMakeFiles/CMakeOutput.log
-            build/CMakeFiles/CMakeError.log
+          name: qgis-linux-${{ github.sha }}
+          path: qgis-linux-${{ github.sha }}.tar.gz
+
+      - name: Package Windows build
+        if: matrix.os == 'windows-latest'
+        working-directory: build
+        run: 7z a ..\qgis-windows-${{ github.sha }}.zip *
+
+      - name: Upload Windows artifact
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: qgis-windows-${{ github.sha }}
+          path: qgis-windows-${{ github.sha }}.zip
 
   create_pr:
     name: Create Pull Request
     needs: build-test
     runs-on: ubuntu-22.04
     if: ${{ success() }}
-    environment: { name: approval }
+    environment:
+      name: approval
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
 
       - name: Create Pull Request on qgis/QGIS
         uses: peter-evans/create-pull-request@v5
@@ -67,6 +132,10 @@ jobs:
           head: ${{ github.actor }}:${{ github.ref_name }}
           title: "[${{ github.ref_name }}] Fix issue"
           body: |
-            - Build ✅
-            - Tests ✅
+            - Build ✅  
+            - Tests ✅  
+            Artefacts pour test visuel :  
+            • Linux : `qgis-linux-${{ github.sha }}.tar.gz`  
+            • Windows : `qgis-windows-${{ github.sha }}.zip`  
+
             PR ▶️ Validation manuelle requise.
