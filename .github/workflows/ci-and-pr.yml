@@ -2,31 +2,20 @@ name: CI → Build ▶️ Test ▶️ PR
 
 on:
   push:
-    branches:
-      - "issue-*"
+    branches: [ "issue-*" ]
   pull_request:
-    branches:
-      - main
+    branches: [ "main" ]
 
 jobs:
-  build-test:
-    name: Build & Test on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ ubuntu-22.04, windows-latest ]
-
+  # 1. Build & Test sur Linux (Ubuntu)
+  build-test-linux:
+    name: Build & Test (Linux)
+    runs-on: ubuntu-22.04
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
 
-      # ----------------------------
-      # 1) Installer les dépendances
-      # ----------------------------
-      - name: Install Linux deps
-        if: matrix.os == 'ubuntu-22.04'
+      - name: Installer les dépendances de build
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -37,16 +26,42 @@ jobs:
             libzip-dev protobuf-compiler libprotobuf-dev \
             libexiv2-dev libspatialindex-dev libqscintilla2-qt5-dev
 
-      - name: Setup MSYS2 + Windows deps
-        if: matrix.os == 'windows-latest'
+      - name: Configurer & Compiler QGIS
+        run: |
+          mkdir -p build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release -DWITH_QTWEBENGINE=ON
+          make -j$(nproc)
+
+      - name: Lancer les tests (CTest)
+        working-directory: build
+        run: ctest --output-on-failure
+
+      - name: Upload artefacts Linux
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qgis-linux-logs
+          path: |
+            build/Testing/Temporary/LastTest.log
+            build/CMakeFiles/CMakeOutput.log
+            build/CMakeFiles/CMakeError.log
+
+  # 2. Build & Test sur Windows
+  build-test-windows:
+    name: Build & Test (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Setup MSYS2 & dépendances
         uses: msys2/setup-msys2@v2
         with:
-          msystem: MINGW64
           update: true
-          install: |
+          install: >-
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-qt5
+            mingw-w64-x86_64-qt5-base
             mingw-w64-x86_64-qt5-svg
             mingw-w64-x86_64-qt5-serialport
             mingw-w64-x86_64-qt5-webengine
@@ -61,69 +76,82 @@ jobs:
             mingw-w64-x86_64-spatialindex
             mingw-w64-x86_64-qscintilla2
 
-      # ----------------------------
-      # 2) Configurer & compiler
-      # ----------------------------
-      - name: Configure & Build QGIS
-        run: |
-          mkdir build && cd build
-          if [[ "${{ matrix.os }}" == "ubuntu-22.04" ]]; then
-            cmake .. -DCMAKE_BUILD_TYPE=Release -DWITH_QTWEBENGINE=ON
-            make -j$(nproc)
-          else
-            cmake .. -G "MSYS Makefiles" -DCMAKE_BUILD_TYPE=Release
-            make -j%NUMBER_OF_PROCESSORS%
-          fi
+      - name: Ajouter MSYS2 au PATH
+        shell: bash
+        run: echo "::add-path::C:\\msys64\\mingw64\\bin"
 
-      # ----------------------------
-      # 3) Exécuter les tests
-      # ----------------------------
-      - name: Run tests (CTest)
+      - name: Configurer & Compiler QGIS Windows
+        shell: bash
+        run: |
+          mkdir -p build && cd build
+          cmake .. -G "MSYS Makefiles" -DCMAKE_BUILD_TYPE=Release
+          make -j${NUMBER_OF_PROCESSORS}
+
+      - name: Lancer les tests Windows (CTest)
+        shell: bash
+        run: |
+          cd build
+          ctest --output-on-failure
+
+      - name: Upload artefacts Windows
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qgis-windows-logs
+          path: |
+            build/Testing/Temporary/LastTest.log
+            build/CMakeFiles/CMakeOutput.log
+            build/CMakeFiles/CMakeError.log
+
+  # 3. Build & Test sur macOS
+  build-test-macos:
+    name: Build & Test (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Installer Homebrew et dépendances
+        run: |
+          # Installe Homebrew si absent
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
+          brew update
+          brew install cmake qt@5 gdal proj ccache flex bison libzip protobuf exiv2 spatialindex qscintilla2
+
+      - name: Configurer & Compiler QGIS macOS
+        run: |
+          mkdir -p build && cd build
+          cmake .. \
+            -DCMAKE_PREFIX_PATH="$(brew --prefix qt@5)" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWITH_QTWEBENGINE=ON
+          make -j$(sysctl -n hw.ncpu)
+
+      - name: Lancer les tests macOS (CTest)
         working-directory: build
         run: ctest --output-on-failure
 
-      # ----------------------------
-      # 4) Packaging & artefacts
-      # ----------------------------
-      - name: Package Linux build
-        if: matrix.os == 'ubuntu-22.04'
-        working-directory: build
-        run: tar czf ../qgis-linux-${{ github.sha }}.tar.gz *
-
-      - name: Upload Linux artifact
-        if: matrix.os == 'ubuntu-22.04'
+      - name: Upload artefacts macOS
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: qgis-linux-${{ github.sha }}
-          path: qgis-linux-${{ github.sha }}.tar.gz
+          name: qgis-macos-logs
+          path: |
+            build/Testing/Temporary/LastTest.log
+            build/CMakeFiles/CMakeOutput.log
+            build/CMakeFiles/CMakeError.log
 
-      - name: Package Windows build
-        if: matrix.os == 'windows-latest'
-        working-directory: build
-        run: 7z a ..\qgis-windows-${{ github.sha }}.zip *
-
-      - name: Upload Windows artifact
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: qgis-windows-${{ github.sha }}
-          path: qgis-windows-${{ github.sha }}.zip
-
+  # 4. Création automatique de la PR
   create_pr:
     name: Create Pull Request
-    needs: build-test
+    needs: [build-test-linux, build-test-windows, build-test-macos]
     runs-on: ubuntu-22.04
     if: ${{ success() }}
-    environment:
-      name: approval
-
+    environment: approval
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
 
-      - name: Create Pull Request on qgis/QGIS
+      - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.UPSTREAM_TOKEN }}
@@ -132,10 +160,10 @@ jobs:
           head: ${{ github.actor }}:${{ github.ref_name }}
           title: "[${{ github.ref_name }}] Fix issue"
           body: |
-            - Build ✅  
-            - Tests ✅  
-            Artefacts pour test visuel :  
-            • Linux : `qgis-linux-${{ github.sha }}.tar.gz`  
-            • Windows : `qgis-windows-${{ github.sha }}.zip`  
-
+            - Build Linux ✅
+            - Build Windows ✅
+            - Build macOS ✅
+            - Tests Linux ✅
+            - Tests Windows ✅
+            - Tests macOS ✅
             PR ▶️ Validation manuelle requise.
