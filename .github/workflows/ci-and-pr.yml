@@ -10,68 +10,63 @@ jobs:
   build-test:
     name: Build & Test
     runs-on: ubuntu-22.04
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        with: { fetch-depth: 0 }
 
-      - name: Build Docker image
+      - name: Install build dependencies
         run: |
-          docker build \
-            -t qgis-build:latest \
-            -f .ci/Dockerfile \
-            .
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake git python3 python3-pyqt5 \
+            qtbase5-dev libqt5svg5-dev libqt5serialport5-dev qtwebengine5-dev \
+            gdal-bin libgdal-dev proj-bin libproj-dev \
+            ccache flex bison pkg-config \
+            libzip-dev protobuf-compiler libprotobuf-dev \
+            libexiv2-dev libspatialindex-dev libqscintilla2-qt5-dev
 
-      - name: Run CTest
+      - name: Configure & Build QGIS
         run: |
-          docker run --rm qgis-build:latest \
-            bash -lc "cd /root/QGIS/build && ctest --output-on-failure"
+          mkdir -p build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release -DWITH_QTWEBENGINE=ON
+          make -j$(nproc)
 
-      - name: Upload build logs (on failure)
+      - name: Run tests (CTest)
+        working-directory: build
+        run: ctest --output-on-failure
+
+      - name: Upload build & test logs
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-logs
-          path: /root/QGIS/build/Testing/Temporary/LastTest.log
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Push Docker image to GHCR
-        run: |
-          IMAGE=ghcr.io/${{ github.repository_owner }}/qgis-build:${{ github.sha }}
-          docker tag qgis-build:latest $IMAGE
-          docker push $IMAGE
+          name: qgis-logs
+          path: |
+            build/Testing/Temporary/LastTest.log
+            build/CMakeFiles/CMakeOutput.log
+            build/CMakeFiles/CMakeError.log
 
   create_pr:
     name: Create Pull Request
     needs: build-test
     runs-on: ubuntu-22.04
     if: ${{ success() }}
-    environment:
-      name: approval
+    environment: { name: approval }
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        with: { fetch-depth: 0 }
 
       - name: Create Pull Request on qgis/QGIS
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.UPSTREAM_TOKEN }}
           branch: ${{ github.ref_name }}
-          base: master
+          base: main
           head: ${{ github.actor }}:${{ github.ref_name }}
           title: "[${{ github.ref_name }}] Fix issue"
           body: |
             - Build ✅
             - Tests ✅
-            PR ▶️▶️ validation manuelle.
+            PR ▶️ Validation manuelle requise.
