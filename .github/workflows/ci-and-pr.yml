@@ -21,18 +21,16 @@ jobs:
       - name: 🐣 Checkout
         uses: actions/checkout@v4
 
-      - name: 📥 Download QGIS AppImage
+      - name: 📥 Download QGIS AppImage from SourceForge mirror
         run: |
-          # QGIS 3.42 LTR AppImage (release 2025‑02‑21) :contentReference[oaicite:0]{index=0}
           wget -O QGIS.AppImage \
-            https://qgis.org/downloads/QGIS-3.42.0-2025-02-21-x86_64.AppImage
+            "https://sourceforge.net/projects/qgis.mirror/files/final-3_42_0/QGIS-3.42.0-2025-02-21-x86_64.AppImage/download"
           chmod +x QGIS.AppImage
 
       - name: 🖥️ Headless smoke‑test under Xvfb
         uses: GabrielBB/xvfb-action@v1
         with:
           run: ./QGIS.AppImage --nologo & sleep 5; pkill AppImage
-        
 
       - name: 📸 Capture screenshot of Xvfb buffer
         run: |
