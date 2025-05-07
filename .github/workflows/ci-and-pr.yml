@@ -12,8 +12,10 @@ jobs:
     name: Build & Test (Linux)
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Installer les dépendances de build
         run: |
@@ -29,7 +31,7 @@ jobs:
       - name: Configure ccache for precompiled headers
         run: ccache --set-config sloppiness=pch_defines,time_macros
 
-      - name: Configurer & Compiler QGIS
+      - name: Configurer & compiler QGIS
         run: |
           mkdir -p build && cd build
           cmake .. -DCMAKE_BUILD_TYPE=Release -DWITH_QTWEBENGINE=ON
@@ -39,7 +41,7 @@ jobs:
         working-directory: build
         run: ctest --output-on-failure
 
-      - name: Upload artefacts Linux
+      - name: Upload logs Linux
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -54,8 +56,10 @@ jobs:
     name: Build & Test (Windows)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup MSYS2 & dépendances
         uses: msys2/setup-msys2@v2
@@ -82,20 +86,20 @@ jobs:
       - name: Ajouter MSYS2 au PATH
         run: echo 'C:\msys64\mingw64\bin' >> $GITHUB_PATH
 
-      - name: Configurer & Compiler QGIS Windows
+      - name: Configurer & compiler QGIS (Windows)
         shell: bash
         run: |
           mkdir -p build && cd build
           cmake .. -G "MSYS Makefiles" -DCMAKE_BUILD_TYPE=Release
           make -j${NUMBER_OF_PROCESSORS}
 
-      - name: Lancer les tests Windows (CTest)
+      - name: Lancer les tests (CTest) sous Windows
         shell: bash
         run: |
           cd build
           ctest --output-on-failure
 
-      - name: Upload artefacts Windows
+      - name: Upload logs Windows
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -107,34 +111,35 @@ jobs:
 
       - name: Package UI test (Windows)
         if: always()
-        shell: bash
+        shell: pwsh
         run: |
-          cd build/bin
-          zip -r qgis-ui-test-windows.zip qgis.exe plugins/qgsrasterlayersaveas*
+          Compress-Archive -Path build/bin/qgis.exe,build/bin/plugins/qgsrasterlayersaveas* `
+                           -DestinationPath qgis-ui-test-windows.zip
 
       - name: Upload Windows UI artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: qgis-ui-test-windows
-          path: build/bin/qgis-ui-test-windows.zip
+          path: qgis-ui-test-windows.zip
 
   # 3. Build & Test sur macOS
   build-test-macos:
     name: Build & Test (macOS)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Installer Homebrew et dépendances
         run: |
-          # Installe Homebrew si absent
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
           brew update
           brew install cmake qt@5 gdal proj ccache flex bison libzip protobuf exiv2 spatialindex qscintilla2
 
-      - name: Configurer & Compiler QGIS macOS
+      - name: Configurer & compiler QGIS (macOS)
         run: |
           mkdir -p build && cd build
           cmake .. \
@@ -143,11 +148,11 @@ jobs:
             -DWITH_QTWEBENGINE=ON
           make -j$(sysctl -n hw.ncpu)
 
-      - name: Lancer les tests macOS (CTest)
+      - name: Lancer les tests (CTest) sous macOS
         working-directory: build
         run: ctest --output-on-failure
 
-      - name: Upload artefacts macOS
+      - name: Upload logs macOS
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -163,9 +168,9 @@ jobs:
     needs: [build-test-linux, build-test-windows, build-test-macos]
     runs-on: ubuntu-22.04
     if: ${{ success() }}
-    environment: approval
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
@@ -176,10 +181,7 @@ jobs:
           head: ${{ github.actor }}:${{ github.ref_name }}
           title: "[${{ github.ref_name }}] Fix issue"
           body: |
-            - Build Linux ✅
-            - Build Windows ✅
-            - Build macOS ✅
-            - Tests Linux ✅
-            - Tests Windows ✅
-            - Tests macOS ✅
-            PR ▶️ Validation manuelle requise.
+            - Build Linux ✅  
+            - Build Windows ✅  
+            - Build macOS ✅  
+            PR ready for manual review.
