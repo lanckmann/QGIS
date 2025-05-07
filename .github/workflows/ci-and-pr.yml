@@ -60,12 +60,24 @@ jobs:
           path: |
             screenshot.png
             /home/runner/.cache/ccache
-  # 2. Build on Windows with Visual Studio + Qt6 + vcpkg
+
+  # 2. Build on Windows with Visual Studio + Qt6 + vcpkg (with cleanup)
   windows-qt6:
+    name: Build & Test (Windows)
     runs-on: windows-2022
+    env:
+      # Clean up vcpkg buildtrees, packages & downloads after each port to free disk space 
+      VCPKG_CLEAN_AFTER_BUILD: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Prune old vcpkg buildtrees
+        shell: powershell
+        run: |
+          if (Test-Path C:\.vcpkg\buildtrees) {
+            Remove-Item -Recurse -Force C:\.vcpkg\buildtrees
+          }
 
       - name: Uninstall system CMake
         shell: bash
@@ -111,6 +123,7 @@ jobs:
           cmake -S "$SOURCE_DIR" -B "$BUILD_DIR" -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DWITH_VCPKG=ON \
+            -DVCPKG_CLEAN_AFTER_BUILD=ON \
             -DBUILD_WITH_QT6=ON \
             -DENABLE_TESTS=OFF \
             -DUSE_CCACHE=ON \
