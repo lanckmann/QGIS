@@ -2,7 +2,7 @@
 version: 2
 
 updates:
-  # Je veux que Dependabot scrute mes GitHub Actions pour les mettre à jour chaque mois
+  # scrute mes GitHub Actions pour les mettre à jour chaque mois
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -14,7 +14,7 @@ updates:
     schedule:
       interval: "weekly"
 
-  # Mon Dockerfile contient toutes mes dépendances système, je l'actualise aussi chaque semaine
+  # Dockerfile toutes mes dépendances système, actualise aussi chaque semaine
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
