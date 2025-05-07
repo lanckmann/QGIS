@@ -21,17 +21,23 @@ jobs:
       - name: 🐣 Checkout
         uses: actions/checkout@v4
 
+      - name: ➕ Add UbuntuGIS & QGIS.org repos
+        run: |
+          sudo add-apt-repository ppa:ubuntugis/ubuntugis-unstable -y
+          # clé et source QGIS.org pour Ubuntu Jammy
+          wget -O - https://qgis.org/downloads/qgis-archive-keyring.gpg \
+            | sudo tee /usr/share/keyrings/qgis-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/qgis-archive-keyring.gpg] https://qgis.org/ubuntu jammy main" \
+            | sudo tee /etc/apt/sources.list.d/qgis.list
+
       - name: 📦 Install deps (+ PDAL + Draco + Qt6 + HDF5 + NetCDF + Yarn)
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             build-essential cmake git python3 python3-pyqt5 \
             # Qt6 modules
-            qt6-base-dev \
-            libqt6svg6-dev \
-            libqt6serialport6-dev \
-            qt6-webengine-dev \
-            # GIS & science
+            qt6-base-dev libqt6svg6-dev libqt6serialport6-dev qt6-webengine-dev \
+            # GIS & science libs
             gdal-bin libgdal-dev proj-bin libproj-dev \
             libhdf5-dev netcdf-bin libnetcdf-dev \
             # caching & build tools
@@ -40,8 +46,8 @@ jobs:
             libexiv2-dev libspatialindex-dev libqscintilla2-qt5-dev \
             # PDAL & Draco
             libpdal-dev pdal libdraco-dev \
-            # Front‑end assets
-            yarn || true
+            # front‑end assets
+            yarn
 
       - name: 💾 Configure CCache (PCH)
         run: ccache --set-config sloppiness=pch_defines,time_macros
@@ -84,7 +90,7 @@ jobs:
           path: |
             build/Testing/Temporary/LastTest.log
             build/CMakeFiles/*.log
-            
+
   # 2. Build on Windows with Visual Studio + Qt6 + vcpkg
   windows-qt6:
     runs-on: windows-2022
