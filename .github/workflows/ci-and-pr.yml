@@ -26,6 +26,9 @@ jobs:
             libzip-dev protobuf-compiler libprotobuf-dev \
             libexiv2-dev libspatialindex-dev libqscintilla2-qt5-dev
 
+      - name: Configure ccache for precompiled headers
+        run: ccache --set-config sloppiness=pch_defines,time_macros
+
       - name: Configurer & Compiler QGIS
         run: |
           mkdir -p build && cd build
