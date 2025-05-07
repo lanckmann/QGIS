@@ -474,8 +474,27 @@ QStringList QgsRasterLayerSaveAsDialog::creationOptions() const
 
 QgsRectangle QgsRasterLayerSaveAsDialog::outputRectangle() const
 {
-  return mExtentGroupBox->outputExtent();
-}
+  QgsRectangle ex = mExtentGroupBox->outputExtent();
+
+  if ( mUi->snapToGridCheckBox->isChecked() && mRasterLayer )
+   {
+     double xres = mRasterLayer->rasterUnitsPerPixelX();
+     double yres = mRasterLayer->rasterUnitsPerPixelY();
+     const QgsRectangle& lyExt = mRasterLayer->extent();
+ 
+     double xmin = lyExt.xMinimum() + std::floor((ex.xMinimum() - lyExt.xMinimum()) / xres) * xres;
+     double ymin = lyExt.yMinimum() + std::floor((ex.yMinimum() - lyExt.yMinimum()) / yres) * yres;
+     double xmax = lyExt.xMinimum() + std::ceil ((ex.xMaximum() - lyExt.xMinimum()) / xres) * xres;
+     double ymax = lyExt.yMinimum() + std::ceil ((ex.yMaximum() - lyExt.yMinimum()) / yres) * yres;
+ 
+     ex.setXMinimum(xmin);
+     ex.setYMinimum(ymin);
+     ex.setXMaximum(xmax);
+     ex.setYMaximum(ymax);
+   }
+   return ex;
+ }
+
 
 void QgsRasterLayerSaveAsDialog::hideFormat()
 {

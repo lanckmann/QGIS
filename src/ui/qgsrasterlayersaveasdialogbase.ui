@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>575</width>
-    <height>610</height>
+    <width>608</width>
+    <height>603</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -17,12 +17,12 @@
    <item>
     <layout class="QGridLayout" name="gridLayout_4">
      <item row="2" column="1">
-      <widget class="QgsFileWidget" name="mFilename" native="true">
+      <widget class="QgsFileWidget" name="mFilename">
        <property name="enabled">
         <bool>true</bool>
        </property>
        <property name="focusPolicy">
-        <enum>Qt::FocusPolicy::StrongFocus</enum>
+        <enum>Qt::NoFocus</enum>
        </property>
       </widget>
      </item>
@@ -63,9 +63,6 @@
        </item>
        <item>
         <spacer name="horizontalSpacer">
-         <property name="orientation">
-          <enum>Qt::Orientation::Horizontal</enum>
-         </property>
          <property name="sizeHint" stdset="0">
           <size>
            <width>40</width>
@@ -87,9 +84,9 @@
       </widget>
      </item>
      <item row="4" column="1">
-      <widget class="QgsProjectionSelectionWidget" name="mCrsSelector" native="true">
+      <widget class="QgsProjectionSelectionWidget" name="mCrsSelector">
        <property name="focusPolicy">
-        <enum>Qt::FocusPolicy::StrongFocus</enum>
+        <enum>Qt::NoFocus</enum>
        </property>
       </widget>
      </item>
@@ -168,9 +165,9 @@ datasets with maximum width and height specified below.</string>
       <property name="geometry">
        <rect>
         <x>0</x>
-        <y>-157</y>
-        <width>538</width>
-        <height>602</height>
+        <y>0</y>
+        <width>575</width>
+        <height>628</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_5">
@@ -188,18 +185,31 @@ datasets with maximum width and height specified below.</string>
          <property name="title">
           <string>Extent</string>
          </property>
-         <property name="alignment">
-          <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
-         </property>
          <property name="checkable">
           <bool>false</bool>
          </property>
-         <property name="collapsed" stdset="0">
+         <property name="collapsed">
           <bool>false</bool>
          </property>
-         <property name="saveCollapsedState" stdset="0">
+         <property name="saveCollapsedState">
           <bool>true</bool>
          </property>
+         <widget class="QCheckBox" name="snapToGridCheckBox">
+          <property name="geometry">
+           <rect>
+            <x>10</x>
+            <y>80</y>
+            <width>81</width>
+            <height>18</height>
+           </rect>
+          </property>
+          <property name="text">
+           <string>Snap to grid</string>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
+         </widget>
         </widget>
        </item>
        <item>
@@ -219,10 +229,10 @@ datasets with maximum width and height specified below.</string>
          <property name="checkable">
           <bool>false</bool>
          </property>
-         <property name="collapsed" stdset="0">
+         <property name="collapsed">
           <bool>false</bool>
          </property>
-         <property name="saveCollapsedState" stdset="0">
+         <property name="saveCollapsedState">
           <bool>true</bool>
          </property>
          <layout class="QVBoxLayout" name="verticalLayout_3">
@@ -283,9 +293,6 @@ datasets with maximum width and height specified below.</string>
               <property name="text">
                <string>Vertical</string>
               </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignCenter</set>
-              </property>
              </widget>
             </item>
            </layout>
@@ -310,10 +317,10 @@ datasets with maximum width and height specified below.</string>
          <property name="checked">
           <bool>false</bool>
          </property>
-         <property name="collapsed" stdset="0">
+         <property name="collapsed">
           <bool>false</bool>
          </property>
-         <property name="saveCollapsedState" stdset="0">
+         <property name="saveCollapsedState">
           <bool>true</bool>
          </property>
          <layout class="QHBoxLayout" name="horizontalLayout_5">
@@ -371,10 +378,10 @@ datasets with maximum width and height specified below.</string>
          <property name="checked">
           <bool>false</bool>
          </property>
-         <property name="collapsed" stdset="0">
+         <property name="collapsed">
           <bool>false</bool>
          </property>
-         <property name="saveCollapsedState" stdset="0">
+         <property name="saveCollapsedState">
           <bool>true</bool>
          </property>
          <layout class="QGridLayout" name="gridLayout_5">
@@ -401,10 +408,10 @@ datasets with maximum width and height specified below.</string>
          <property name="checked">
           <bool>false</bool>
          </property>
-         <property name="collapsed" stdset="0">
+         <property name="collapsed">
           <bool>false</bool>
          </property>
-         <property name="saveCollapsedState" stdset="0">
+         <property name="saveCollapsedState">
           <bool>true</bool>
          </property>
          <layout class="QGridLayout" name="gridLayout_3">
@@ -414,7 +421,7 @@ datasets with maximum width and height specified below.</string>
           <item row="2" column="0">
            <widget class="Line" name="line">
             <property name="orientation">
-             <enum>Qt::Orientation::Horizontal</enum>
+             <enum>Qt::Vertical</enum>
             </property>
            </widget>
           </item>
@@ -429,11 +436,8 @@ datasets with maximum width and height specified below.</string>
             </item>
             <item>
              <spacer name="horizontalSpacer_5">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
               <property name="sizeType">
-               <enum>QSizePolicy::Policy::Fixed</enum>
+               <enum>QSizePolicy::Fixed</enum>
               </property>
               <property name="sizeHint" stdset="0">
                <size>
@@ -494,10 +498,10 @@ datasets with maximum width and height specified below.</string>
          <property name="checked">
           <bool>false</bool>
          </property>
-         <property name="collapsed" stdset="0">
+         <property name="collapsed">
           <bool>false</bool>
          </property>
-         <property name="saveCollapsedState" stdset="0">
+         <property name="saveCollapsedState">
           <bool>true</bool>
          </property>
          <layout class="QHBoxLayout" name="horizontalLayout_7">
@@ -615,11 +619,8 @@ datasets with maximum width and height specified below.</string>
        </item>
        <item>
         <spacer name="verticalSpacer">
-         <property name="orientation">
-          <enum>Qt::Orientation::Vertical</enum>
-         </property>
          <property name="sizeType">
-          <enum>QSizePolicy::Policy::Expanding</enum>
+          <enum>QSizePolicy::Fixed</enum>
          </property>
          <property name="sizeHint" stdset="0">
           <size>
@@ -637,19 +638,13 @@ datasets with maximum width and height specified below.</string>
     <layout class="QHBoxLayout" name="horizontalLayout_10">
      <item>
       <widget class="QDialogButtonBox" name="mHelpButtonBox">
-       <property name="orientation">
-        <enum>Qt::Orientation::Horizontal</enum>
-       </property>
        <property name="standardButtons">
-        <set>QDialogButtonBox::StandardButton::Help</set>
+        <set>QDialogButtonBox::NoButton</set>
        </property>
       </widget>
      </item>
      <item>
       <spacer name="horizontalSpacer1">
-       <property name="orientation">
-        <enum>Qt::Orientation::Horizontal</enum>
-       </property>
        <property name="sizeHint" stdset="0">
         <size>
          <width>20</width>
@@ -670,11 +665,8 @@ datasets with maximum width and height specified below.</string>
      </item>
      <item>
       <widget class="QDialogButtonBox" name="mButtonBox">
-       <property name="orientation">
-        <enum>Qt::Orientation::Horizontal</enum>
-       </property>
        <property name="standardButtons">
-        <set>QDialogButtonBox::StandardButton::Cancel|QDialogButtonBox::StandardButton::Ok</set>
+        <set>QDialogButtonBox::NoButton</set>
        </property>
       </widget>
      </item>
@@ -684,15 +676,21 @@ datasets with maximum width and height specified below.</string>
  </widget>
  <customwidgets>
   <customwidget>
-   <class>QgsScrollArea</class>
-   <extends>QScrollArea</extends>
-   <header>qgsscrollarea.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
    <class>QgsCollapsibleGroupBox</class>
    <extends>QGroupBox</extends>
    <header>qgscollapsiblegroupbox.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>QgsExtentGroupBox</class>
+   <extends>QgsCollapsibleGroupBox</extends>
+   <header>qgsextentgroupbox.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>QgsFileWidget</class>
+   <extends>QWidget</extends>
+   <header>qgsfilewidget.h</header>
    <container>1</container>
   </customwidget>
   <customwidget>
@@ -702,9 +700,9 @@ datasets with maximum width and height specified below.</string>
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>QgsExtentGroupBox</class>
-   <extends>QgsCollapsibleGroupBox</extends>
-   <header>qgsextentgroupbox.h</header>
+   <class>QgsScrollArea</class>
+   <extends>QScrollArea</extends>
+   <header>qgsscrollarea.h</header>
    <container>1</container>
   </customwidget>
   <customwidget>
@@ -717,12 +715,6 @@ datasets with maximum width and height specified below.</string>
    <class>QgsRasterPyramidsOptionsWidget</class>
    <extends>QWidget</extends>
    <header>qgsrasterpyramidsoptionswidget.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>QgsFileWidget</class>
-   <extends>QWidget</extends>
-   <header>qgsfilewidget.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>
