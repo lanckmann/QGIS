@@ -77,7 +77,6 @@ jobs:
             mingw-w64-x86_64-qscintilla2
 
       - name: Ajouter MSYS2 au PATH
-        shell: bash
         run: echo 'C:\msys64\mingw64\bin' >> $GITHUB_PATH
 
       - name: Configurer & Compiler QGIS Windows
@@ -102,6 +101,20 @@ jobs:
             build/Testing/Temporary/LastTest.log
             build/CMakeFiles/CMakeOutput.log
             build/CMakeFiles/CMakeError.log
+
+      - name: Package UI test (Windows)
+        if: always()
+        shell: bash
+        run: |
+          cd build/bin
+          zip -r qgis-ui-test-windows.zip qgis.exe plugins/qgsrasterlayersaveas*
+
+      - name: Upload Windows UI artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qgis-ui-test-windows
+          path: build/bin/qgis-ui-test-windows.zip
 
   # 3. Build & Test sur macOS
   build-test-macos:
