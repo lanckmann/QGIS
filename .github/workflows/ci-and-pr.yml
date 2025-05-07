@@ -7,6 +7,7 @@ on:
     branches: [ "main" ]
 
 jobs:
+
   # 1. Build & Test sur Linux (Ubuntu)
   build-test-linux:
     name: Build & Test (Linux)
@@ -17,7 +18,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Installer les dépendances de build
+      - name: Installer les dépendances de build (+ PDAL)
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -26,22 +27,26 @@ jobs:
             gdal-bin libgdal-dev proj-bin libproj-dev \
             ccache flex bison pkg-config \
             libzip-dev protobuf-compiler libprotobuf-dev \
-            libexiv2-dev libspatialindex-dev libqscintilla2-qt5-dev
+            libexiv2-dev libspatialindex-dev libqscintilla2-qt5-dev \
+            libpdal-dev pdal
 
-      - name: Configure ccache for precompiled headers
+      - name: Configure ccache pour PCH
         run: ccache --set-config sloppiness=pch_defines,time_macros
 
       - name: Configurer & compiler QGIS
         run: |
           mkdir -p build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release -DWITH_QTWEBENGINE=ON
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWITH_QTWEBENGINE=ON \
+            -DWITH_PDAL=ON
           make -j$(nproc)
 
       - name: Lancer les tests (CTest)
         working-directory: build
         run: ctest --output-on-failure
 
-      - name: Upload logs Linux
+      - name: Upload logs Linux (en cas d’échec)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -61,27 +66,28 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup MSYS2 & dépendances
-        uses: msys2/setup-msys2@v2
-        with:
-          update: true
-          install: >-
-            mingw-w64-x86_64-toolchain
-            mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-qt5-base
-            mingw-w64-x86_64-qt5-svg
-            mingw-w64-x86_64-qt5-serialport
-            mingw-w64-x86_64-qt5-webengine
-            mingw-w64-x86_64-gdal
-            mingw-w64-x86_64-proj
-            mingw-w64-x86_64-ccache
-            mingw-w64-x86_64-flex
+      - name: Mettre à jour MSYS2
+        shell: bash
+        run: pacman -Syuu --noconfirm
+
+      - name: Installer MSYS2 & dépendances
+        shell: bash
+        run: |
+          pacman -S --noconfirm \
+            mingw-w64-x86_64-toolchain \
+            mingw-w64-x86_64-cmake \
+            mingw-w64-x86_64-qt5-base \
+            mingw-w64-x86_64-qt5-svg \
+            mingw-w64-x86_64-qt5-serialport \
+            mingw-w64-x86_64-gdal \
+            mingw-w64-x86_64-proj \
+            mingw-w64-x86_64-ccache \
+            mingw-w64-x86_64-libzip \
+            mingw-w64-x86_64-protobuf \
+            mingw-w64-x86_64-exiv2 \
+            mingw-w64-x86_64-spatialindex \
+            mingw-w64-x86_64-flex \
             mingw-w64-x86_64-bison
-            mingw-w64-x86_64-libzip
-            mingw-w64-x86_64-protobuf
-            mingw-w64-x86_64-exiv2
-            mingw-w64-x86_64-spatialindex
-            mingw-w64-x86_64-qscintilla2
 
       - name: Ajouter MSYS2 au PATH
         run: echo 'C:\msys64\mingw64\bin' >> $GITHUB_PATH
@@ -90,16 +96,19 @@ jobs:
         shell: bash
         run: |
           mkdir -p build && cd build
-          cmake .. -G "MSYS Makefiles" -DCMAKE_BUILD_TYPE=Release
+          cmake .. \
+            -G "MSYS Makefiles" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWITH_QTWEBENGINE=OFF
           make -j${NUMBER_OF_PROCESSORS}
 
-      - name: Lancer les tests (CTest) sous Windows
+      - name: Lancer les tests (CTest)
         shell: bash
         run: |
           cd build
           ctest --output-on-failure
 
-      - name: Upload logs Windows
+      - name: Upload logs Windows (en cas d’échec)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -145,14 +154,15 @@ jobs:
           cmake .. \
             -DCMAKE_PREFIX_PATH="$(brew --prefix qt@5)" \
             -DCMAKE_BUILD_TYPE=Release \
-            -DWITH_QTWEBENGINE=ON
+            -DWITH_QTWEBENGINE=ON \
+            -DWITH_PDAL=ON
           make -j$(sysctl -n hw.ncpu)
 
-      - name: Lancer les tests (CTest) sous macOS
+      - name: Lancer les tests (CTest)
         working-directory: build
         run: ctest --output-on-failure
 
-      - name: Upload logs macOS
+      - name: Upload logs macOS (en cas d’échec)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
