@@ -13,38 +13,53 @@ permissions:
   contents: read
 
 jobs:
-  # 1. Smoke‑test QGIS via AppImage (Linux)
   linux-build:
-    name: Smoke‑test QGIS AppImage (Linux)
+    name: Build & Smoke‑test QGIS (APT)
     runs-on: ubuntu-22.04
     steps:
       - name: 🐣 Checkout
         uses: actions/checkout@v4
 
-      - name: 📥 Download QGIS AppImage from SourceForge mirror
+      - name: ➕ Ajouter dépôt QGIS.org pour Jammy
         run: |
-          wget -O QGIS.AppImage \
-            "https://sourceforge.net/projects/qgis.mirror/files/final-3_42_0/QGIS-3.42.0-2025-02-21-x86_64.AppImage/download"
-          chmod +x QGIS.AppImage
+          wget -qO - https://qgis.org/downloads/qgis-archive-keyring.gpg \
+            | sudo tee /usr/share/keyrings/qgis-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/qgis-archive-keyring.gpg] https://qgis.org/ubuntu jammy main" \
+            | sudo tee /etc/apt/sources.list.d/qgis.list
 
-      - name: 🖥️ Headless smoke‑test under Xvfb
+      - name: 📦 Installer QGIS + dépendances
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            qgis \
+            qgis-plugin-grass \
+            python3-qgis \
+            libhdf5-dev libnetcdf-dev yarn \
+            ccache
+
+      - name: 💾 Configurer CCache (PCH)
+        run: ccache --set-config sloppiness=pch_defines,time_macros
+
+      - name: ⚙️ Vérifier version QGIS
+        run: qgis --version
+
+      - name: 🖥️ Smoke‑test QGIS sous Xvfb
         uses: GabrielBB/xvfb-action@v1
         with:
-          run: ./QGIS.AppImage --nologo & sleep 5; pkill AppImage
+          run: qgis --nologo & sleep 5; pkill qgis
 
-      - name: 📸 Capture screenshot of Xvfb buffer
+      - name: 📸 Capture screenshot du test headless
         run: |
-          sudo apt-get update && sudo apt-get install -y imagemagick
+          sudo apt-get install -y imagemagick
           DISPLAY=:99 import -window root screenshot.png
 
-      - name: 📤 Upload AppImage & screenshot
+      - name: 📤 Artifact – screenshot & logs
         uses: actions/upload-artifact@v4
         with:
-          name: qgis-linux-appimage
+          name: qgis-linux-artefacts
           path: |
-            QGIS.AppImage
             screenshot.png
-
+            /home/runner/.cache/ccache
   # 2. Build on Windows with Visual Studio + Qt6 + vcpkg
   windows-qt6:
     runs-on: windows-2022
