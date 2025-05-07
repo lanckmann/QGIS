@@ -14,47 +14,43 @@ permissions:
 
 jobs:
   # 1. Build & Test on Linux (Ubuntu)
-  linux-build:
-    name: Build & Test (Linux)
+ linux-build:
+    name: Build & Test (Linux – Conda)
     runs-on: ubuntu-22.04
     steps:
       - name: 🐣 Checkout
         uses: actions/checkout@v4
 
-      - name: ➕ Add UbuntuGIS & QGIS.org repos
+      - name: 📥 Install Miniconda
         run: |
-          sudo add-apt-repository ppa:ubuntugis/ubuntugis-unstable -y
-          # clé et source QGIS.org pour Ubuntu Jammy
-          wget -O - https://qgis.org/downloads/qgis-archive-keyring.gpg \
-            | sudo tee /usr/share/keyrings/qgis-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/qgis-archive-keyring.gpg] https://qgis.org/ubuntu jammy main" \
-            | sudo tee /etc/apt/sources.list.d/qgis.list
+          wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
+          bash miniconda.sh -b -p $HOME/miniconda
+          echo "PATH=$HOME/miniconda/bin:$PATH" >> $GITHUB_ENV
 
-      - name: 📦 Install deps (+ PDAL + Draco + Qt6 + HDF5 + NetCDF + Yarn)
+      - name: 🌍 Create Conda env with QGIS & deps
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential cmake git python3 python3-pyqt5 \
-            # Qt6 modules
-            qt6-base-dev libqt6svg6-dev libqt6serialport6-dev qt6-webengine-dev \
-            # GIS & science libs
-            gdal-bin libgdal-dev proj-bin libproj-dev \
-            libhdf5-dev netcdf-bin libnetcdf-dev \
-            # caching & build tools
-            ccache flex bison pkg-config \
-            libzip-dev protobuf-compiler libprotobuf-dev \
-            libexiv2-dev libspatialindex-dev libqscintilla2-qt5-dev \
-            # PDAL & Draco
-            libpdal-dev pdal libdraco-dev \
-            # front‑end assets
-            yarn
+          conda install -y -c conda-forge mamba
+          mamba create -y -n ci-env \
+            qgis \
+            hdf5 \
+            netcdf4 \
+            yarn \
+            python=3.10
+        
+
+      - name: 🚀 Activate Conda env
+        run: |
+          source $HOME/miniconda/etc/profile.d/conda.sh
+          conda activate ci-env
 
       - name: 💾 Configure CCache (PCH)
         run: ccache --set-config sloppiness=pch_defines,time_macros
 
       - name: ⚙️ Configure & build QGIS
         run: |
-          mkdir -p build && cd build
+          source $HOME/miniconda/etc/profile.d/conda.sh
+          conda activate ci-env
+          mkdir build && cd build
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_WITH_QT6=ON \
@@ -68,19 +64,40 @@ jobs:
 
       - name: 🔍 Run Tests (CTest)
         run: |
+          source $HOME/miniconda/etc/profile.d/conda.sh
+          conda activate ci-env
           cd build
           ctest --output-on-failure
 
       - name: 📦 Bundle QGIS (Linux)
         run: |
+          source $HOME/miniconda/etc/profile.d/conda.sh
+          conda activate ci-env
           cd build
           cmake --build . --target bundle --config Release
+
+      - name: 🖥️ Headless QGIS smoke‑test under Xvfb
+        uses: GabrielBB/xvfb-action@v1
+        with:
+          run: qgis --nologo & sleep 5; pkill qgis
+       
+
+      - name: 📸 Capture screenshot of Xvfb buffer
+        run: |
+          sudo apt-get update && sudo apt-get install -y imagemagick
+          DISPLAY=:99 import -window root screenshot.png
+
+      - name: 📤 Upload visual-test screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: qgis-visual-test
+          path: screenshot.png
 
       - name: 📤 Upload Linux bundle
         uses: actions/upload-artifact@v4
         with:
           name: qgis-linux
-          path: build/*-linux*.tar.gz   
+          path: build/*-linux*.tar.gz
 
       - name: 📤 Upload Linux logs si échec
         if: failure()
