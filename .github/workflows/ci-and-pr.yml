@@ -13,100 +13,39 @@ permissions:
   contents: read
 
 jobs:
-  # 1. Build & Test on Linux (Ubuntu)
- linux-build:
-    name: Build & Test (Linux – Conda)
+  # 1. Smoke‑test QGIS via AppImage (Linux)
+  linux-build:
+    name: Smoke‑test QGIS AppImage (Linux)
     runs-on: ubuntu-22.04
     steps:
       - name: 🐣 Checkout
         uses: actions/checkout@v4
 
-      - name: 📥 Install Miniconda
+      - name: 📥 Download QGIS AppImage
         run: |
-          wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
-          bash miniconda.sh -b -p $HOME/miniconda
-          echo "PATH=$HOME/miniconda/bin:$PATH" >> $GITHUB_ENV
+          # QGIS 3.42 LTR AppImage (release 2025‑02‑21) :contentReference[oaicite:0]{index=0}
+          wget -O QGIS.AppImage \
+            https://qgis.org/downloads/QGIS-3.42.0-2025-02-21-x86_64.AppImage
+          chmod +x QGIS.AppImage
 
-      - name: 🌍 Create Conda env with QGIS & deps
-        run: |
-          conda install -y -c conda-forge mamba
-          mamba create -y -n ci-env \
-            qgis \
-            hdf5 \
-            netcdf4 \
-            yarn \
-            python=3.10
-        
-
-      - name: 🚀 Activate Conda env
-        run: |
-          source $HOME/miniconda/etc/profile.d/conda.sh
-          conda activate ci-env
-
-      - name: 💾 Configure CCache (PCH)
-        run: ccache --set-config sloppiness=pch_defines,time_macros
-
-      - name: ⚙️ Configure & build QGIS
-        run: |
-          source $HOME/miniconda/etc/profile.d/conda.sh
-          conda activate ci-env
-          mkdir build && cd build
-          cmake .. \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_WITH_QT6=ON \
-            -DWITH_PDAL=ON \
-            -DWITH_DRACO=OFF \
-            -DWITH_QTWEBENGINE=ON \
-            -DWITH_HDF5=ON \
-            -DWITH_NETCDF=ON \
-            -DWITH_YARN=ON
-          cmake --build . -- -j$(nproc)
-
-      - name: 🔍 Run Tests (CTest)
-        run: |
-          source $HOME/miniconda/etc/profile.d/conda.sh
-          conda activate ci-env
-          cd build
-          ctest --output-on-failure
-
-      - name: 📦 Bundle QGIS (Linux)
-        run: |
-          source $HOME/miniconda/etc/profile.d/conda.sh
-          conda activate ci-env
-          cd build
-          cmake --build . --target bundle --config Release
-
-      - name: 🖥️ Headless QGIS smoke‑test under Xvfb
+      - name: 🖥️ Headless smoke‑test under Xvfb
         uses: GabrielBB/xvfb-action@v1
         with:
-          run: qgis --nologo & sleep 5; pkill qgis
-       
+          run: ./QGIS.AppImage --nologo & sleep 5; pkill AppImage
+        
 
       - name: 📸 Capture screenshot of Xvfb buffer
         run: |
           sudo apt-get update && sudo apt-get install -y imagemagick
           DISPLAY=:99 import -window root screenshot.png
 
-      - name: 📤 Upload visual-test screenshot
+      - name: 📤 Upload AppImage & screenshot
         uses: actions/upload-artifact@v4
         with:
-          name: qgis-visual-test
-          path: screenshot.png
-
-      - name: 📤 Upload Linux bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: qgis-linux
-          path: build/*-linux*.tar.gz
-
-      - name: 📤 Upload Linux logs si échec
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: qgis-linux-logs
+          name: qgis-linux-appimage
           path: |
-            build/Testing/Temporary/LastTest.log
-            build/CMakeFiles/*.log
+            QGIS.AppImage
+            screenshot.png
 
   # 2. Build on Windows with Visual Studio + Qt6 + vcpkg
   windows-qt6:
@@ -227,5 +166,3 @@ jobs:
           path: |
             qgis-portable-win64.zip
             qgis-portable-win64-debugsym.zip
-
-
