@@ -1,10 +1,11 @@
+# .github/workflows/ci-and-pr.yml
 name: CI → Build ▶️ Test ▶️ PR
 
 on:
   push:
     branches: [ "issue-*" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master" ]               
 
 jobs:
   # 1. Build & Test sur Linux (Ubuntu)
@@ -37,7 +38,8 @@ jobs:
         run: ctest --output-on-failure
 
       - name: Upload artefacts Linux
-        if: failure()
+        # Toujours uploader les logs, même en cas de succès
+        if: always()                     # ← Modifié de 'failure()' à 'always()' :contentReference[oaicite:2]{index=2}
         uses: actions/upload-artifact@v4
         with:
           name: qgis-linux-logs
@@ -55,7 +57,8 @@ jobs:
         with: { fetch-depth: 0 }
 
       - name: Setup MSYS2 & dépendances
-        uses: msys2/setup-msys2@v2
+        # Action officielle pour MSYS2 sous Windows
+        uses: msys2/setup-msys2@v2     # ← Documentation ➟ https://github.com/msys2/setup-msys2 :contentReference[oaicite:3]{index=3}
         with:
           update: true
           install: >-
@@ -94,7 +97,7 @@ jobs:
           ctest --output-on-failure
 
       - name: Upload artefacts Windows
-        if: failure()
+        if: always()                    # ← Toujours uploader :contentReference[oaicite:4]{index=4}
         uses: actions/upload-artifact@v4
         with:
           name: qgis-windows-logs
@@ -132,7 +135,7 @@ jobs:
         run: ctest --output-on-failure
 
       - name: Upload artefacts macOS
-        if: failure()
+        if: always()                    
         uses: actions/upload-artifact@v4
         with:
           name: qgis-macos-logs
@@ -141,13 +144,13 @@ jobs:
             build/CMakeFiles/CMakeOutput.log
             build/CMakeFiles/CMakeError.log
 
-  # 4. Création automatique de la PR
+  # 4. Création automatique de la PR vers QGIS original
   create_pr:
     name: Create Pull Request
     needs: [build-test-linux, build-test-windows, build-test-macos]
     runs-on: ubuntu-22.04
     if: ${{ success() }}
-    environment: approval
+    environment: approval      
     steps:
       - uses: actions/checkout@v4
 
@@ -156,7 +159,7 @@ jobs:
         with:
           token: ${{ secrets.UPSTREAM_TOKEN }}
           branch: ${{ github.ref_name }}
-          base: main
+          base: master           
           head: ${{ github.actor }}:${{ github.ref_name }}
           title: "[${{ github.ref_name }}] Fix issue"
           body: |
