@@ -8,17 +8,15 @@ on:
 
 jobs:
 
-  # 1. Build & Test sur Linux (Ubuntu)
+  # 1. Build & Test (Linux)
   build-test-linux:
     name: Build & Test (Linux)
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Installer les dépendances de build (+ PDAL)
+      - name: Install Linux deps (+ PDAL)
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -30,10 +28,10 @@ jobs:
             libexiv2-dev libspatialindex-dev libqscintilla2-qt5-dev \
             libpdal-dev pdal
 
-      - name: Configure ccache pour PCH
+      - name: Configure ccache for PCH
         run: ccache --set-config sloppiness=pch_defines,time_macros
 
-      - name: Configurer & compiler QGIS
+      - name: Configure & build QGIS
         run: |
           mkdir -p build && cd build
           cmake .. \
@@ -42,11 +40,11 @@ jobs:
             -DWITH_PDAL=ON
           make -j$(nproc)
 
-      - name: Lancer les tests (CTest)
+      - name: Run tests (CTest)
         working-directory: build
         run: ctest --output-on-failure
 
-      - name: Upload logs Linux (en cas d’échec)
+      - name: Upload Linux logs if failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -56,21 +54,19 @@ jobs:
             build/CMakeFiles/CMakeOutput.log
             build/CMakeFiles/CMakeError.log
 
-  # 2. Build & Test sur Windows
+  # 2. Build & Test (Windows)
   build-test-windows:
     name: Build & Test (Windows)
     runs-on: windows-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Mettre à jour MSYS2
+      - name: Fully update MSYS2
         shell: bash
-        run: pacman -Syuu --noconfirm
+        run: pacman -Syuu --noconfirm                                  :contentReference[oaicite:5]{index=5}
 
-      - name: Installer MSYS2 & dépendances
+      - name: Install MSYS2 dependencies
         shell: bash
         run: |
           pacman -S --noconfirm \
@@ -86,29 +82,38 @@ jobs:
             mingw-w64-x86_64-protobuf \
             mingw-w64-x86_64-exiv2 \
             mingw-w64-x86_64-spatialindex \
-            mingw-w64-x86_64-flex \
-            mingw-w64-x86_64-bison
+            mingw-w64-x86_64-flexdll    # flex replacement :contentReference[oaicite:6]{index=6} \
+            bison                        # GNU parser generator :contentReference[oaicite:7]{index=7} \
+            mingw-w64-x86_64-qscintilla-qt5  # QScintilla2 port :contentReference[oaicite:8]{index=8}
 
-      - name: Ajouter MSYS2 au PATH
+      - name: Add MSYS2 to PATH
         run: echo 'C:\msys64\mingw64\bin' >> $GITHUB_PATH
 
-      - name: Configurer & compiler QGIS (Windows)
+      - name: Configure & build QGIS (Windows)
         shell: bash
         run: |
           mkdir -p build && cd build
           cmake .. \
             -G "MSYS Makefiles" \
             -DCMAKE_BUILD_TYPE=Release \
-            -DWITH_QTWEBENGINE=OFF
+            -DWITH_QTWEBENGINE=OFF         # disable qtwebengine on MinGW :contentReference[oaicite:9]{index=9}
           make -j${NUMBER_OF_PROCESSORS}
 
-      - name: Lancer les tests (CTest)
+      - name: Run tests (CTest)
         shell: bash
         run: |
           cd build
           ctest --output-on-failure
 
-      - name: Upload logs Windows (en cas d’échec)
+      - name: Verify qgis.exe exists
+        shell: bash
+        run: |
+          if [ ! -f "build/bin/qgis.exe" ]; then
+            echo "::error file=build/bin/qgis.exe::Missing build/bin/qgis.exe"
+            exit 1
+          fi
+
+      - name: Upload Windows logs if failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -132,23 +137,21 @@ jobs:
           name: qgis-ui-test-windows
           path: qgis-ui-test-windows.zip
 
-  # 3. Build & Test sur macOS
+  # 3. Build & Test (macOS)
   build-test-macos:
     name: Build & Test (macOS)
     runs-on: macos-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Installer Homebrew et dépendances
+      - name: Install Homebrew & deps
         run: |
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
           brew update
           brew install cmake qt@5 gdal proj ccache flex bison libzip protobuf exiv2 spatialindex qscintilla2
 
-      - name: Configurer & compiler QGIS (macOS)
+      - name: Configure & build QGIS (macOS)
         run: |
           mkdir -p build && cd build
           cmake .. \
@@ -158,11 +161,11 @@ jobs:
             -DWITH_PDAL=ON
           make -j$(sysctl -n hw.ncpu)
 
-      - name: Lancer les tests (CTest)
+      - name: Run tests (CTest)
         working-directory: build
         run: ctest --output-on-failure
 
-      - name: Upload logs macOS (en cas d’échec)
+      - name: Upload macOS logs if failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -172,7 +175,7 @@ jobs:
             build/CMakeFiles/CMakeOutput.log
             build/CMakeFiles/CMakeError.log
 
-  # 4. Création automatique de la PR
+  # 4. Create Pull Request
   create_pr:
     name: Create Pull Request
     needs: [build-test-linux, build-test-windows, build-test-macos]
