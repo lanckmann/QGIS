@@ -64,7 +64,7 @@ jobs:
 
       - name: Fully update MSYS2
         shell: bash
-        run: pacman -Syuu --noconfirm                                  :contentReference[oaicite:5]{index=5}
+        run: pacman -Syuu --noconfirm
 
       - name: Install MSYS2 dependencies
         shell: bash
@@ -82,21 +82,21 @@ jobs:
             mingw-w64-x86_64-protobuf \
             mingw-w64-x86_64-exiv2 \
             mingw-w64-x86_64-spatialindex \
-            mingw-w64-x86_64-flexdll    # flex replacement :contentReference[oaicite:6]{index=6} \
-            bison                        # GNU parser generator :contentReference[oaicite:7]{index=7} \
-            mingw-w64-x86_64-qscintilla-qt5  # QScintilla2 port :contentReference[oaicite:8]{index=8}
+            mingw-w64-x86_64-flexdll \
+            bison \
+            mingw-w64-x86_64-qscintilla-qt5
 
       - name: Add MSYS2 to PATH
         run: echo 'C:\msys64\mingw64\bin' >> $GITHUB_PATH
 
-      - name: Configure & build QGIS (Windows)
+      - name: Configure & build QGIS
         shell: bash
         run: |
           mkdir -p build && cd build
           cmake .. \
             -G "MSYS Makefiles" \
             -DCMAKE_BUILD_TYPE=Release \
-            -DWITH_QTWEBENGINE=OFF         # disable qtwebengine on MinGW :contentReference[oaicite:9]{index=9}
+            -DWITH_QTWEBENGINE=OFF
           make -j${NUMBER_OF_PROCESSORS}
 
       - name: Run tests (CTest)
@@ -108,12 +108,12 @@ jobs:
       - name: Verify qgis.exe exists
         shell: bash
         run: |
-          if [ ! -f "build/bin/qgis.exe" ]; then
-            echo "::error file=build/bin/qgis.exe::Missing build/bin/qgis.exe"
+          if [ ! -f build/bin/qgis.exe ]; then
+            echo "❌ build/bin/qgis.exe not found!"
             exit 1
           fi
 
-      - name: Upload Windows logs if failure
+      - name: Upload Windows logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -127,8 +127,8 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          Compress-Archive -Path build/bin/qgis.exe,build/bin/plugins/qgsrasterlayersaveas* `
-                           -DestinationPath qgis-ui-test-windows.zip
+          # Zip the entire build\bin folder so we know qgis.exe is in there
+          Compress-Archive -Path build\bin\* -DestinationPath qgis-ui-test-windows.zip
 
       - name: Upload Windows UI artifact
         if: always()
