@@ -2,21 +2,26 @@ name: CI → Build ▶️ Test ▶️ PR
 
 on:
   push:
-    branches: [ "issue-*" ]
+    branches:
+      - master
+      - 'release-**'
+      - 'issue-*'
   pull_request:
-    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-
-  # 1. Build & Test (Linux)
-  build-test-linux:
+  # 1. Build & Test on Linux (Ubuntu)
+  linux-build:
     name: Build & Test (Linux)
     runs-on: ubuntu-22.04
     steps:
-      - name: Checkout code
+      - name: 🐣 Checkout
         uses: actions/checkout@v4
 
-      - name: Install Linux deps (+ PDAL)
+      - name: 📦 Install deps (+ PDAL + Draco)
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -26,175 +31,160 @@ jobs:
             ccache flex bison pkg-config \
             libzip-dev protobuf-compiler libprotobuf-dev \
             libexiv2-dev libspatialindex-dev libqscintilla2-qt5-dev \
-            libpdal-dev pdal
+            libpdal-dev pdal libdraco-dev || true
 
-      - name: Configure ccache for PCH
+      - name: 💾 Configure CCache (PCH)
         run: ccache --set-config sloppiness=pch_defines,time_macros
 
-      - name: Configure & build QGIS
+      - name: ⚙️ Configure & build QGIS
         run: |
           mkdir -p build && cd build
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
-            -DWITH_QTWEBENGINE=ON \
-            -DWITH_PDAL=ON
-          make -j$(nproc)
+            -DWITH_PDAL=ON \
+            -DWITH_DRACO=OFF \
+            -DWITH_QTWEBENGINE=ON
+          cmake --build . -- -j$(nproc)
 
-      - name: Run tests (CTest)
-        working-directory: build
-        run: ctest --output-on-failure
+      - name: 🔍 Run Tests (CTest)
+        run: |
+          cd build
+          ctest --output-on-failure
 
-      - name: Upload Linux logs if failure
+      
+      - name: 📦 Bundle QGIS (Linux)
+        run: |
+          cd build
+          # “bundle” est la target CPack de QGIS
+          cmake --build . --target bundle --config Release
+
+      - name: 📤 Upload Linux bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: qgis-linux
+          path: build/*-linux*.tar.gz   
+
+      - name: 📤 Upload Linux logs si échec
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: qgis-linux-logs
           path: |
             build/Testing/Temporary/LastTest.log
-            build/CMakeFiles/CMakeOutput.log
-            build/CMakeFiles/CMakeError.log
+            build/CMakeFiles/*.log
 
-  # 2. Build & Test (Windows)
-  build-test-windows:
-    name: Build & Test (Windows)
-    runs-on: windows-latest
+  # 2. Build on Windows with Visual Studio + Qt6 + vcpkg
+  windows-qt6:
+    name: Build (Windows – Qt6)
+    runs-on: windows-2022
     steps:
-      - name: Checkout code
+      - name: 🐣 Checkout
         uses: actions/checkout@v4
 
-      - name: Fully update MSYS2
+      - name: 🔨 Uninstall system CMake
         shell: bash
-        run: pacman -Syuu --noconfirm
+        run: choco uninstall cmake.install -y || true
 
-      - name: Install MSYS2 dependencies
+      - name: 🐩 Install CMake & Ninja
+        uses: lukka/get-cmake@v3
+        with:
+          cmakeVersion: 3.31.6
+          installNinja: true
+
+      - name: 🧽 Activate MSVC Dev Cmd
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: 🎡 Setup vcpkg
+        uses: ./.github/actions/setup-vcpkg
+
+      - name: 🦬 Get WinFlexBison
+        uses: robinraju/release-downloader@v1.12
+        with:
+          repository: lexxmark/winflexbison
+          fileName: '*.zip'
+          tag: v2.5.24
+          extract: true
+
+      - name: 🛍️ Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          max-size: 1G
+          key: build-ccache-win64-qt6-${{ github.ref_name }}
+          restore: true
+          save: true
+
+      - name: 🛍️ Tune ccache
+        shell: bash
+        run: ccache --set-config sloppiness=pch_defines,time_macros,include_file_mtime,include_file_ctime
+
+      - name: 🌱 Configure & Build
         shell: bash
         run: |
-          pacman -S --noconfirm \
-            mingw-w64-x86_64-toolchain \
-            mingw-w64-x86_64-cmake \
-            mingw-w64-x86_64-qt5-base \
-            mingw-w64-x86_64-qt5-svg \
-            mingw-w64-x86_64-qt5-serialport \
-            mingw-w64-x86_64-gdal \
-            mingw-w64-x86_64-proj \
-            mingw-w64-x86_64-ccache \
-            mingw-w64-x86_64-libzip \
-            mingw-w64-x86_64-protobuf \
-            mingw-w64-x86_64-exiv2 \
-            mingw-w64-x86_64-spatialindex \
-            mingw-w64-x86_64-flexdll \
-            bison \
-            mingw-w64-x86_64-qscintilla-qt5
-
-      - name: Add MSYS2 to PATH
-        run: echo 'C:\msys64\mingw64\bin' >> $GITHUB_PATH
-
-      - name: Configure & build QGIS
-        shell: bash
-        run: |
-          mkdir -p build && cd build
-          cmake .. \
-            -G "MSYS Makefiles" \
+          BUILD_DIR=$(cygpath "${{ github.workspace }}/build")
+          SOURCE_DIR=$(cygpath "${{ github.workspace }}")
+          cmake -S "$SOURCE_DIR" -B "$BUILD_DIR" -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DWITH_QTWEBENGINE=OFF
-          make -j${NUMBER_OF_PROCESSORS}
+            -DWITH_VCPKG=ON \
+            -D BUILD_WITH_QT6=ON \
+            -D ENABLE_TESTS=OFF \
+            -D USE_CCACHE=ON \
+            -D FLEX_EXECUTABLE="${SOURCE_DIR}/win_flex.exe" \
+            -D BISON_EXECUTABLE="${SOURCE_DIR}/win_bison.exe" \
+            -D CMAKE_C_COMPILER_LAUNCHER=ccache \
+            -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -D WITH_QTWEBENGINE=OFF \
+            -D WITH_DRACO=OFF
+          cmake --build "$BUILD_DIR" --config Release
 
-      - name: Run tests (CTest)
+      - name: 📦 Bundle with CPack
         shell: bash
-        run: |
-          cd build
-          ctest --output-on-failure
+        run: cmake --build "${{ github.workspace }}/build" --config Release --target bundle
 
-      - name: Verify qgis.exe exists
-        shell: bash
-        run: |
-          if [ ! -f build/bin/qgis.exe ]; then
-            echo "❌ build/bin/qgis.exe not found!"
-            exit 1
-          fi
-
-      - name: Upload Windows logs on failure
-        if: failure()
+      - name: 📤 Upload Windows bundle
         uses: actions/upload-artifact@v4
         with:
-          name: qgis-windows-logs
-          path: |
-            build/Testing/Temporary/LastTest.log
-            build/CMakeFiles/CMakeOutput.log
-            build/CMakeFiles/CMakeError.log
+          name: qgis-windows-qt6
+          path: build/*-win64.zip
 
-      - name: Package UI test (Windows)
-        if: always()
-        shell: pwsh
-        run: |
-          # Zip the entire build\bin folder so we know qgis.exe is in there
-          Compress-Archive -Path build\bin\* -DestinationPath qgis-ui-test-windows.zip
-
-      - name: Upload Windows UI artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: qgis-ui-test-windows
-          path: qgis-ui-test-windows.zip
-
-  # 3. Build & Test (macOS)
-  build-test-macos:
-    name: Build & Test (macOS)
-    runs-on: macos-latest
+  # 3. MinGW64 build inside Fedora container (for portable zip)
+  mingw64-build:
+    name: Build (MinGW64)
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:40
+      options: --security-opt seccomp=unconfined
     steps:
-      - name: Checkout code
+      - name: 🐣 Checkout
         uses: actions/checkout@v4
 
-      - name: Install Homebrew & deps
+      - name: 🔄 Update system
         run: |
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
-          brew update
-          brew install cmake qt@5 gdal proj ccache flex bison libzip protobuf exiv2 spatialindex qscintilla2
+          dnf -y update
+          dnf -y install zip
 
-      - name: Configure & build QGIS (macOS)
+      - name: 🛠️ Install MinGW deps
+        run: ./ms-windows/mingw/mingwdeps.sh
+
+      - name: 🔨 Build QGIS (MinGW)
+        run: CCACHE_DIR=$PWD/.ccache ./ms-windows/mingw/build.sh x86_64 nodebug 4
+
+      - name: 🎁 Create Portable zip
         run: |
-          mkdir -p build && cd build
-          cmake .. \
-            -DCMAKE_PREFIX_PATH="$(brew --prefix qt@5)" \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DWITH_QTWEBENGINE=ON \
-            -DWITH_PDAL=ON
-          make -j$(sysctl -n hw.ncpu)
+          DISTROOT=build_mingw64/dist/usr/x86_64-w64-mingw32/sys-root/mingw
+          mkdir -p dist_debug
+          for file in $(find $DISTROOT -name '*.debug'); do
+            mv "$file" dist_debug/
+          done
+          mv $DISTROOT QGIS-Portable
+          zip -r qgis-portable-win64.zip QGIS-Portable
+          (cd dist_debug && zip -r qgis-portable-win64-debugsym.zip .)
 
-      - name: Run tests (CTest)
-        working-directory: build
-        run: ctest --output-on-failure
-
-      - name: Upload macOS logs if failure
-        if: failure()
+      - name: 📤 Upload MinGW64 builds
         uses: actions/upload-artifact@v4
         with:
-          name: qgis-macos-logs
+          name: QGIS MinGW64
           path: |
-            build/Testing/Temporary/LastTest.log
-            build/CMakeFiles/CMakeOutput.log
-            build/CMakeFiles/CMakeError.log
+            qgis-portable-win64.zip
+            qgis-portable-win64-debugsym.zip
 
-  # 4. Create Pull Request
-  create_pr:
-    name: Create Pull Request
-    needs: [build-test-linux, build-test-windows, build-test-macos]
-    runs-on: ubuntu-22.04
-    if: ${{ success() }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
 
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.UPSTREAM_TOKEN }}
-          branch: ${{ github.ref_name }}
-          base: main
-          head: ${{ github.actor }}:${{ github.ref_name }}
-          title: "[${{ github.ref_name }}] Fix issue"
-          body: |
-            - Build Linux ✅  
-            - Build Windows ✅  
-            - Build macOS ✅  
-            PR ready for manual review.
