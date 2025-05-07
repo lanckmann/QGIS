@@ -75,29 +75,28 @@ jobs:
 
   # 2. Build on Windows with Visual Studio + Qt6 + vcpkg
   windows-qt6:
-    name: Build (Windows – Qt6)
     runs-on: windows-2022
     steps:
-      - name: 🐣 Checkout
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 🔨 Uninstall system CMake
+      - name: Uninstall system CMake
         shell: bash
         run: choco uninstall cmake.install -y || true
 
-      - name: 🐩 Install CMake & Ninja
-        uses: lukka/get-cmake@v3
+      - name: Install CMake & Ninja
+        uses: lukka/get-cmake@latest
         with:
           cmakeVersion: 3.31.6
-          installNinja: true
+          ninjaVersion: latest
 
-      - name: 🧽 Activate MSVC Dev Cmd
+      - name: Activate MSVC
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: 🎡 Setup vcpkg
+      - name: Setup vcpkg
         uses: ./.github/actions/setup-vcpkg
 
-      - name: 🦬 Get WinFlexBison
+      - name: Download WinFlexBison
         uses: robinraju/release-downloader@v1.12
         with:
           repository: lexxmark/winflexbison
@@ -105,7 +104,7 @@ jobs:
           tag: v2.5.24
           extract: true
 
-      - name: 🛍️ Setup ccache
+      - name: Configure ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
           max-size: 1G
@@ -113,11 +112,11 @@ jobs:
           restore: true
           save: true
 
-      - name: 🛍️ Tune ccache
+      - name: Tune ccache
         shell: bash
-        run: ccache --set-config sloppiness=pch_defines,time_macros,include_file_mtime,include_file_ctime
+        run: ccache --set-config sloppiness=pch_defines,time_macros
 
-      - name: 🌱 Configure & Build
+      - name: Configure & build
         shell: bash
         run: |
           BUILD_DIR=$(cygpath "${{ github.workspace }}/build")
@@ -125,26 +124,33 @@ jobs:
           cmake -S "$SOURCE_DIR" -B "$BUILD_DIR" -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DWITH_VCPKG=ON \
-            -D BUILD_WITH_QT6=ON \
-            -D ENABLE_TESTS=OFF \
-            -D USE_CCACHE=ON \
-            -D FLEX_EXECUTABLE="${SOURCE_DIR}/win_flex.exe" \
-            -D BISON_EXECUTABLE="${SOURCE_DIR}/win_bison.exe" \
+            -DBUILD_WITH_QT6=ON \
+            -DENABLE_TESTS=OFF \
+            -DUSE_CCACHE=ON \
+            -DFLEX_EXECUTABLE="${SOURCE_DIR}/win_flex.exe" \
+            -DBISON_EXECUTABLE="${SOURCE_DIR}/win_bison.exe" \
             -D CMAKE_C_COMPILER_LAUNCHER=ccache \
             -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -D WITH_QTWEBENGINE=OFF \
-            -D WITH_DRACO=OFF
+            -DWITH_QTWEBENGINE=OFF \
+            -DWITH_DRACO=OFF
           cmake --build "$BUILD_DIR" --config Release
 
-      - name: 📦 Bundle with CPack
+      - name: Bundle (CPack)
         shell: bash
         run: cmake --build "${{ github.workspace }}/build" --config Release --target bundle
 
-      - name: 📤 Upload Windows bundle
+      - name: Upload Windows bundle
         uses: actions/upload-artifact@v4
         with:
           name: qgis-windows-qt6
           path: build/*-win64.zip
+
+      - name: Upload Windows logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qgis-windows-logs
+          path: build/CMakeFiles/*log
 
   # 3. MinGW64 build inside Fedora container (for portable zip)
   mingw64-build:
