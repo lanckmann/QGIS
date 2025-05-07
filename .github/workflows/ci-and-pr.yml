@@ -21,17 +21,27 @@ jobs:
       - name: 🐣 Checkout
         uses: actions/checkout@v4
 
-      - name: 📦 Install deps (+ PDAL + Draco)
+      - name: 📦 Install deps (+ PDAL + Draco + Qt6 + HDF5 + NetCDF + Yarn)
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             build-essential cmake git python3 python3-pyqt5 \
-            qtbase5-dev libqt5svg5-dev libqt5serialport5-dev qtwebengine5-dev \
+            # Qt6 modules
+            qt6-base-dev \
+            libqt6svg6-dev \
+            libqt6serialport6-dev \
+            qt6-webengine-dev \
+            # GIS & science
             gdal-bin libgdal-dev proj-bin libproj-dev \
+            libhdf5-dev netcdf-bin libnetcdf-dev \
+            # caching & build tools
             ccache flex bison pkg-config \
             libzip-dev protobuf-compiler libprotobuf-dev \
             libexiv2-dev libspatialindex-dev libqscintilla2-qt5-dev \
-            libpdal-dev pdal libdraco-dev || true
+            # PDAL & Draco
+            libpdal-dev pdal libdraco-dev \
+            # Front‑end assets
+            yarn || true
 
       - name: 💾 Configure CCache (PCH)
         run: ccache --set-config sloppiness=pch_defines,time_macros
@@ -41,9 +51,13 @@ jobs:
           mkdir -p build && cd build
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_WITH_QT6=ON \
             -DWITH_PDAL=ON \
             -DWITH_DRACO=OFF \
-            -DWITH_QTWEBENGINE=ON
+            -DWITH_QTWEBENGINE=ON \
+            -DWITH_HDF5=ON \
+            -DWITH_NETCDF=ON \
+            -DWITH_YARN=ON
           cmake --build . -- -j$(nproc)
 
       - name: 🔍 Run Tests (CTest)
@@ -51,11 +65,9 @@ jobs:
           cd build
           ctest --output-on-failure
 
-      
       - name: 📦 Bundle QGIS (Linux)
         run: |
           cd build
-          # “bundle” est la target CPack de QGIS
           cmake --build . --target bundle --config Release
 
       - name: 📤 Upload Linux bundle
@@ -72,7 +84,7 @@ jobs:
           path: |
             build/Testing/Temporary/LastTest.log
             build/CMakeFiles/*.log
-
+            
   # 2. Build on Windows with Visual Studio + Qt6 + vcpkg
   windows-qt6:
     runs-on: windows-2022
