@@ -14,8 +14,8 @@ permissions:
 
 jobs:
   linux-build:
-    name: Build & Smoke‑test QGIS (APT)
-    runs-on: ubuntu-22.04
+    name: Build & Smoke-test QGIS (APT)
+    runs-on: [self-hosted, linux, x64]
     steps:
       - name: 🐣 Checkout
         uses: actions/checkout@v4
@@ -43,7 +43,7 @@ jobs:
       - name: ⚙️ Vérifier version QGIS
         run: qgis --version
 
-      - name: 🖥️ Smoke‑test QGIS sous Xvfb
+      - name: 🖥️ Smoke-test QGIS sous Xvfb
         uses: GabrielBB/xvfb-action@v1
         with:
           run: qgis --nologo & sleep 5; pkill qgis
@@ -53,7 +53,7 @@ jobs:
           sudo apt-get install -y imagemagick
           DISPLAY=:99 import -window root screenshot.png
 
-      - name: 📤 Artifact – screenshot & logs
+      - name: 📤 Artifact – screenshot & logs
         uses: actions/upload-artifact@v4
         with:
           name: qgis-linux-artefacts
@@ -61,12 +61,10 @@ jobs:
             screenshot.png
             /home/runner/.cache/ccache
 
-  # 2. Build on Windows with Visual Studio + Qt6 + vcpkg (with cleanup)
   windows-qt6:
     name: Build & Test (Windows)
-    runs-on: windows-2022
+    runs-on: [self-hosted, windows, x64]
     env:
-      # Clean up vcpkg buildtrees, packages & downloads after each port to free disk space 
       VCPKG_CLEAN_AFTER_BUILD: "1"
     steps:
       - name: Checkout
@@ -152,27 +150,25 @@ jobs:
           name: qgis-windows-logs
           path: build/CMakeFiles/*log
 
-  # 3. MinGW64 build inside Fedora container (for portable zip)
   mingw64-build:
     name: Build (MinGW64)
-    runs-on: ubuntu-latest
-    container:
-      image: fedora:40
-      options: --security-opt seccomp=unconfined
+    runs-on: [self-hosted, linux, x64]
     steps:
       - name: 🐣 Checkout
         uses: actions/checkout@v4
 
       - name: 🔄 Update system
         run: |
-          dnf -y update
-          dnf -y install zip
+          sudo dnf -y update
+          sudo dnf -y install zip
 
       - name: 🛠️ Install MinGW deps
         run: ./ms-windows/mingw/mingwdeps.sh
 
       - name: 🔨 Build QGIS (MinGW)
-        run: CCACHE_DIR=$PWD/.ccache ./ms-windows/mingw/build.sh x86_64 nodebug 4
+        run: |
+          export CCACHE_DIR=$PWD/.ccache
+          ./ms-windows/mingw/build.sh x86_64 nodebug 4
 
       - name: 🎁 Create Portable zip
         run: |
