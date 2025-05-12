@@ -23,6 +23,29 @@ jobs:
         sudo add-apt-repository -y ppa:ubuntugis/ubuntugis-unstable
         sudo apt-get update
 
+    - name: Auto-detect & install missing deps
+      run: |
+        mkdir -p build && cd build
+        # Configure once to generate error log of missing packages
+        cmake .. -G Ninja -DCMAKE_FIND_DEBUG_MODE=TRUE || true
+        if [ -f CMakeFiles/CMakeError.log ]; then
+          missing=$(grep "Could NOT find" CMakeFiles/CMakeError.log \
+            | sed -E 's/.*Could NOT find ([^ ]+).*/\1/' \
+            | sort -u)
+          for pkg in $missing; do
+            echo "Recherche apt pour $pkg"
+            candidate=$(apt-cache search "^lib${pkg,,}" | head -n1 | cut -d' ' -f1)
+            if [ -n "$candidate" ]; then
+              sudo apt-get install -y $candidate
+            else
+              echo "Aucun paquet trouvé pour $pkg"
+            fi
+          done
+        else
+          echo "Pas de CMakeError.log, skip auto-detect"
+        fi
+        cd ..
+
     - name: Install system dependencies
       run: |
         sudo apt-get install -y \
@@ -137,3 +160,10 @@ jobs:
           artifacts.data.artifacts.forEach(artifact => {
             console.log(`Artifact: ${artifact.name} (${artifact.size} bytes)`);
           });
+    - name: Notify Slack
+      uses: rtCamp/action-slack-notify@v2
+      env:
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        SLACK_COLOR: ${{ job.status }}
+        SLACK_TITLE: "QGIS Build Status"
+        SLACK_MESSAGE: "Build completed with status: ${{ job.status }}"
