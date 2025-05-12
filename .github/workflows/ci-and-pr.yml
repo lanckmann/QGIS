@@ -1,4 +1,5 @@
-name: CI → Build ▶️ Test ▶️ PR
+# .github/workflows/ci.yml
+name: "CI → Build ▶️ Test ▶️ PR"
 
 on:
   push:
@@ -6,8 +7,8 @@ on:
       - master
       - 'release-**'
       - 'issue-*'
-  pull_request:
-  workflow_dispatch:
+  pull_request: {}
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -23,11 +24,11 @@ jobs:
       - name: 🔧 Installer prerequisites APT
         run: |
           sudo apt-get update
-          sudo apt-get install -y software-properties-common wget apt-transport-https   
+          sudo apt-get install -y software-properties-common wget apt-transport-https
 
       - name: ➕ Ajouter le PPA UbuntuGIS Unstable
         run: |
-          sudo add-apt-repository ppa:ubuntugis/ubuntugis-unstable -y                     
+          sudo add-apt-repository ppa:ubuntugis/ubuntugis-unstable -y
 
       - name: 📦 Installer QGIS + dépendances GIS
         run: |
@@ -36,7 +37,7 @@ jobs:
             qgis \
             python3-qgis \
             qgis-plugin-grass \
-            ccache                                               
+            ccache
 
       - name: 💾 Configurer CCache (PCH)
         run: ccache --set-config sloppiness=pch_defines,time_macros
@@ -44,16 +45,15 @@ jobs:
       - name: ⚙️ Vérifier version QGIS
         run: qgis --version
 
-      - name: 🖥️ Smoke-test QGIS sous Xvfb
+      - name: 🖥️ Smoke-test QGIS sous Xvfb et capture screenshot
         run: |
-          sudo apt-get install -y xvfb imagemagick                      # Xvfb + import pour screenshot
-          xvfb-run --auto-servernum --server-args='-screen 0 1024x768x24' qgis --nologo &
+          sudo apt-get install -y xvfb imagemagick
+          Xvfb :99 -screen 0 1024x768x24 &
+          export DISPLAY=:99
+          qgis --nologo &
           sleep 5
+          import -window root screenshot.png
           pkill qgis
-
-      - name: 📸 Capture screenshot du test headless
-        run: |
-          DISPLAY=:99 import -window root screenshot.png
 
       - name: 📤 Artifact – screenshot & logs
         uses: actions/upload-artifact@v4
@@ -80,8 +80,9 @@ jobs:
           }
 
       - name: Uninstall system CMake (idempotent)
-        shell: bash
-        run: choco uninstall cmake.install -y || echo "CMake not present"
+        shell: powershell
+        run: |
+          choco uninstall cmake.install -y || Write-Host "CMake not présent"
 
       - name: Install CMake & Ninja
         uses: lukka/get-cmake@latest
@@ -155,34 +156,43 @@ jobs:
   mingw64-build:
     name: Build (MinGW64)
     runs-on: [self-hosted, linux, x64]
+    container:
+      image: elpaso/qgis-deps-mingw:latest
     steps:
       - name: 🐣 Checkout
         uses: actions/checkout@v4
 
-      - name: 🔄 Update system & installer MinGW
+      - name: 🔨 Installer dépendances & build QGIS (MinGW)
         run: |
-          sudo apt-get update                                       
-          sudo apt-get install -y \
-            mingw-w64 \
-            gcc-mingw-w64-x86-64 \
-            g++-mingw-w64-x86-64 \
-            zip \
-            ccache \
-            build-essential                                     
+          printf '[main]\ngpgcheck=True\ninstallonly_limit=3\nclean_requirements_on_remove=True\nbest=False\nskip_if_unavailable=True\ntsflags=nodocs' > /etc/dnf/dnf.conf
+          dnf install -y --nogpgcheck $(grep -v '^#' <<'PKGS'
+          mingw64-dlfcn mingw64-exiv2 mingw64-fcgi ccache mingw64-gcc-c++ mingw64-gdal mingw64-gdb
+          mingw64-GeographicLib mingw64-geos mingw64-gsl mingw64-libzip mingw64-postgresql mingw64-proj
+          mingw64-python3 mingw64-python3-affine mingw64-python3-chardet mingw64-python3-dateutil
+          mingw64-python3-flask mingw64-python3-gdal mingw64-python3-GeographicLib mingw64-python3-homography
+          mingw64-python3-idna mingw64-python3-lxml mingw64-python3-markupsafe mingw64-python3-numpy
+          mingw64-python3-opencv mingw64-python3-OWSLib mingw64-python3-pillow mingw64-python3-psycopg2
+          mingw64-python3-PyQt-builder mingw64-python3-pytz mingw64-python3-pyyaml mingw64-python3-qscintilla-qt5
+          mingw64-python3-qt5 mingw64-python3-requests mingw64-python3-shapely mingw64-python3-urllib3
+          mingw64-qca-qt5 mingw64-qscintilla-qt5 mingw64-qt5-qmake mingw64-qt5-qtactiveqt mingw64-qt5-qtbase
+          mingw64-qt5-qtimageformats mingw64-qt5-qtlocation mingw64-qt5-qtmultimedia mingw64-qt5-qtscript
+          mingw64-qt5-qtserialport mingw64-qt5-qtsvg mingw64-qt5-qttools mingw64-qt5-qttools-tools
+          mingw64-qt5-qttranslations mingw64-qt5-qtwebkit mingw64-qt5-qtxmlpatterns mingw64-qtkeychain-qt5
+          mingw64-quazip-qt5 mingw64-qwt-qt5 mingw64-sip mingw64-spatialindex mingw64-sqlite mingw64-svg2svgt
+          mingw64-zstd bison cmake findutils flex gcc-c++ gdal-devel git make proj-devel python-devel
+          python-qt5 python3-qscintilla-qt5 qt5-linguist qt5-qtbase-devel sqlite-devel wget
+          xorg-x11-server-Xvfb zip
+          PKGS)
 
-      - name: 🔨 Build QGIS (MinGW)
-        run: |
-          export CCACHE_DIR=$PWD/.ccache
-          ./ms-windows/mingw/build.sh x86_64 nodebug 4
+          chmod +x ms-windows/mingw/build.sh
+          ./ms-windows/mingw/build.sh x86_64 nodebug
 
-      - name: 🎁 Create Portable zip
+      - name: 🎁 Créer et zipper la build
         run: |
           DISTROOT=build_mingw64/dist/usr/x86_64-w64-mingw32/sys-root/mingw
           mkdir -p dist_debug
-          for file in $(find $DISTROOT -name '*.debug'); do
-            mv "$file" dist_debug/
-          done
-          mv $DISTROOT QGIS-Portable
+          find "$DISTROOT" -name '*.debug' -exec mv {} dist_debug/ \;
+          mv "$DISTROOT" QGIS-Portable
           zip -r qgis-portable-win64.zip QGIS-Portable
           (cd dist_debug && zip -r qgis-portable-win64-debugsym.zip .)
 
