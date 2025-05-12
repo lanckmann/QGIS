@@ -27,8 +27,7 @@ jobs:
           sudo apt-get install -y software-properties-common wget apt-transport-https
 
       - name: ➕ Ajouter le PPA UbuntuGIS Unstable
-        run: |
-          sudo add-apt-repository ppa:ubuntugis/ubuntugis-unstable -y
+        run: sudo add-apt-repository ppa:ubuntugis/ubuntugis-unstable -y
 
       - name: 📦 Installer QGIS + dépendances GIS
         run: |
@@ -65,28 +64,13 @@ jobs:
 
   windows-qt6:
     name: Build & Test (Windows)
-    runs-on: [self-hosted, windows, x64]
+    runs-on: windows-latest
     env:
       VCPKG_CLEAN_AFTER_BUILD: "1"
     steps:
-      - name: ✅ Install Git (if missing)
-        shell: powershell
-        run: |
-          if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-            choco install git -y
-          }
-
-      - name: 🐣 Checkout
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Prune old vcpkg buildtrees (si existant)
-        shell: powershell
-        run: |
-          if (Test-Path C:\.vcpkg\buildtrees) {
-            Remove-Item -Recurse -Force C:\.vcpkg\buildtrees
-          }
 
       - name: Uninstall system CMake (idempotent)
         shell: powershell
@@ -164,14 +148,14 @@ jobs:
 
   mingw64-build:
     name: Build (MinGW64)
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
     container:
       image: elpaso/qgis-deps-mingw:latest
     steps:
       - name: 🐣 Checkout
         uses: actions/checkout@v4
 
-      - name: 🔄 Installer dépendances & build QGIS (MinGW)
+      - name: 🔨 Installer dépendances & build QGIS (MinGW)
         run: |
           printf '[main]\ngpgcheck=True\ninstallonly_limit=3\nclean_requirements_on_remove=True\nbest=False\nskip_if_unavailable=True\ntsflags=nodocs' > /etc/dnf/dnf.conf
           dnf install -y --nogpgcheck $(grep -v '^#' <<'PKGS'
