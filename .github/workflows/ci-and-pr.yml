@@ -14,28 +14,29 @@ permissions:
 
 jobs:
   linux-build:
-    name: Build & Smoke-test QGIS (APT)
+    name: Build & Smoke-test QGIS (APT via UbuntuGIS PPA)
     runs-on: [self-hosted, linux, x64]
     steps:
       - name: 🐣 Checkout
         uses: actions/checkout@v4
 
-      - name: ➕ Ajouter dépôt QGIS.org pour Jammy
+      - name: 🔧 Installer prerequisites APT
         run: |
-          wget -qO - https://qgis.org/downloads/qgis-archive-keyring.gpg \
-            | sudo tee /usr/share/keyrings/qgis-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/qgis-archive-keyring.gpg] https://qgis.org/ubuntu jammy main" \
-            | sudo tee /etc/apt/sources.list.d/qgis.list
+          sudo apt-get update
+          sudo apt-get install -y software-properties-common wget apt-transport-https   
 
-      - name: 📦 Installer QGIS + dépendances
+      - name: ➕ Ajouter le PPA UbuntuGIS Unstable
+        run: |
+          sudo add-apt-repository ppa:ubuntugis/ubuntugis-unstable -y                     
+
+      - name: 📦 Installer QGIS + dépendances GIS
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             qgis \
-            qgis-plugin-grass \
             python3-qgis \
-            libhdf5-dev libnetcdf-dev yarn \
-            ccache
+            qgis-plugin-grass \
+            ccache                                               
 
       - name: 💾 Configurer CCache (PCH)
         run: ccache --set-config sloppiness=pch_defines,time_macros
@@ -45,14 +46,13 @@ jobs:
 
       - name: 🖥️ Smoke-test QGIS sous Xvfb
         run: |
-          sudo apt-get install -y xvfb
+          sudo apt-get install -y xvfb imagemagick                      # Xvfb + import pour screenshot
           xvfb-run --auto-servernum --server-args='-screen 0 1024x768x24' qgis --nologo &
           sleep 5
           pkill qgis
 
       - name: 📸 Capture screenshot du test headless
         run: |
-          sudo apt-get install -y imagemagick
           DISPLAY=:99 import -window root screenshot.png
 
       - name: 📤 Artifact – screenshot & logs
@@ -61,7 +61,7 @@ jobs:
           name: qgis-linux-artefacts
           path: |
             screenshot.png
-            /home/runner/.cache/ccache
+            ~/.cache/ccache
 
   windows-qt6:
     name: Build & Test (Windows)
@@ -72,16 +72,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prune old vcpkg buildtrees
+      - name: Prune old vcpkg buildtrees (si existant)
         shell: powershell
         run: |
           if (Test-Path C:\.vcpkg\buildtrees) {
             Remove-Item -Recurse -Force C:\.vcpkg\buildtrees
           }
 
-      - name: Uninstall system CMake
+      - name: Uninstall system CMake (idempotent)
         shell: bash
-        run: choco uninstall cmake.install -y || true
+        run: choco uninstall cmake.install -y || echo "CMake not present"
 
       - name: Install CMake & Ninja
         uses: lukka/get-cmake@latest
@@ -129,8 +129,8 @@ jobs:
             -DUSE_CCACHE=ON \
             -DFLEX_EXECUTABLE="${SOURCE_DIR}/win_flex.exe" \
             -DBISON_EXECUTABLE="${SOURCE_DIR}/win_bison.exe" \
-            -D CMAKE_C_COMPILER_LAUNCHER=ccache \
-            -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DWITH_QTWEBENGINE=OFF \
             -DWITH_DRACO=OFF
           cmake --build "$BUILD_DIR" --config Release
@@ -161,11 +161,14 @@ jobs:
 
       - name: 🔄 Update system & installer MinGW
         run: |
-          sudo apt-get update
-          sudo apt-get install -y mingw-w64 zip ccache build-essential
-
-      - name: 🛠️ Install MinGW deps
-        run: ./ms-windows/mingw/mingwdeps.sh
+          sudo apt-get update                                       
+          sudo apt-get install -y \
+            mingw-w64 \
+            gcc-mingw-w64-x86-64 \
+            g++-mingw-w64-x86-64 \
+            zip \
+            ccache \
+            build-essential                                     
 
       - name: 🔨 Build QGIS (MinGW)
         run: |
@@ -190,3 +193,4 @@ jobs:
           path: |
             qgis-portable-win64.zip
             qgis-portable-win64-debugsym.zip
+            build_mingw64/ms-windows/osgeo4w/package.log
