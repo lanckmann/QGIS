@@ -55,13 +55,39 @@ jobs:
           import -window root screenshot.png
           pkill qgis
 
-      - name: 📤 Artifact – screenshot & logs
+      - name: 📦 Préparer AppImage
+        run: |
+          sudo apt-get install -y xz-utils pkgconf patchelf
+          # Créer la structure AppDir
+          rm -rf AppDir
+          mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/share
+          # Copier l’exécutable et les librairies QGIS
+          cp /usr/bin/qgis AppDir/usr/bin/
+          cp -r /usr/lib/qgis AppDir/usr/lib/
+          cp -r /usr/share/qgis AppDir/usr/share/
+          # Récupérer linuxdeploy
+          wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+
+      - name: 📦 Générer AppImage
+        run: |
+          ./linuxdeploy-x86_64.AppImage \
+            --appdir AppDir \
+            --output appimage
+
+      - name: 📤 Upload artifacts Linux
         uses: actions/upload-artifact@v4
         with:
           name: qgis-linux-artefacts
           path: |
             screenshot.png
             ~/.cache/ccache
+
+      - name: 📤 Upload AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: qgis-linux-appimage
+          path: '*.AppImage'
 
   windows-qt6:
     name: Build & Test (Windows)
@@ -162,7 +188,7 @@ jobs:
       - name: 🐣 Checkout
         uses: actions/checkout@v4
 
-      - name: 🔨 Installer dépendances & build QGIS (MinGW)
+      - name: 🔄 Installer dépendances & build QGIS (MinGW)
         run: |
           printf '[main]\ngpgcheck=True\ninstallonly_limit=3\nclean_requirements_on_remove=True\nbest=False\nskip_if_unavailable=True\ntsflags=nodocs' > /etc/dnf/dnf.conf
           dnf install -y --nogpgcheck $(grep -v '^#' <<'PKGS'
@@ -183,7 +209,6 @@ jobs:
           python-qt5 python3-qscintilla-qt5 qt5-linguist qt5-qtbase-devel sqlite-devel wget
           xorg-x11-server-Xvfb zip
           PKGS)
-
           chmod +x ms-windows/mingw/build.sh
           ./ms-windows/mingw/build.sh x86_64 nodebug
 
