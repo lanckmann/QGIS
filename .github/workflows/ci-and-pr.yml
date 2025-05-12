@@ -55,27 +55,7 @@ jobs:
           import -window root screenshot.png
           pkill qgis
 
-      - name: 📦 Préparer AppImage
-        run: |
-          sudo apt-get install -y xz-utils pkgconf patchelf
-          # Créer la structure AppDir
-          rm -rf AppDir
-          mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/share
-          # Copier l’exécutable et les librairies QGIS
-          cp /usr/bin/qgis AppDir/usr/bin/
-          cp -r /usr/lib/qgis AppDir/usr/lib/
-          cp -r /usr/share/qgis AppDir/usr/share/
-          # Récupérer linuxdeploy
-          wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          chmod +x linuxdeploy-x86_64.AppImage
-
-      - name: 📦 Générer AppImage
-        run: |
-          ./linuxdeploy-x86_64.AppImage \
-            --appdir AppDir \
-            --output appimage
-
-      - name: 📤 Upload artifacts Linux
+      - name: 📤 Artifact – screenshot & logs
         uses: actions/upload-artifact@v4
         with:
           name: qgis-linux-artefacts
@@ -83,20 +63,23 @@ jobs:
             screenshot.png
             ~/.cache/ccache
 
-      - name: 📤 Upload AppImage
-        uses: actions/upload-artifact@v4
-        with:
-          name: qgis-linux-appimage
-          path: '*.AppImage'
-
   windows-qt6:
     name: Build & Test (Windows)
     runs-on: [self-hosted, windows, x64]
     env:
       VCPKG_CLEAN_AFTER_BUILD: "1"
     steps:
-      - name: Checkout
+      - name: ✅ Install Git (if missing)
+        shell: powershell
+        run: |
+          if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+            choco install git -y
+          }
+
+      - name: 🐣 Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Prune old vcpkg buildtrees (si existant)
         shell: powershell
