@@ -44,9 +44,11 @@ jobs:
         run: qgis --version
 
       - name: 🖥️ Smoke-test QGIS sous Xvfb
-        uses: GabrielBB/xvfb-action@v1
-        with:
-          run: qgis --nologo & sleep 5; pkill qgis
+        run: |
+          sudo apt-get install -y xvfb
+          xvfb-run --auto-servernum --server-args='-screen 0 1024x768x24' qgis --nologo &
+          sleep 5
+          pkill qgis
 
       - name: 📸 Capture screenshot du test headless
         run: |
@@ -157,10 +159,10 @@ jobs:
       - name: 🐣 Checkout
         uses: actions/checkout@v4
 
-      - name: 🔄 Update system
+      - name: 🔄 Update system & installer MinGW
         run: |
-          sudo dnf -y update
-          sudo dnf -y install zip
+          sudo apt-get update
+          sudo apt-get install -y mingw-w64 zip ccache build-essential
 
       - name: 🛠️ Install MinGW deps
         run: ./ms-windows/mingw/mingwdeps.sh
