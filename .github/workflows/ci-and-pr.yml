@@ -10,17 +10,21 @@ on:
 jobs:
   build-linux-appimage:
     name: Build AppImage (Ubuntu 22.04)
-    runs-on: ubuntu-22.04
+    runs-on: [self-hosted, ubuntu-22.04]
     steps:
     - name: Checkout code with submodules
       uses: actions/checkout@v4
       with:
         submodules: recursive
 
-    - name: Install system dependencies
+    - name: Add UbuntuGIS PPA for PROJ ≥ 8.1
       run: |
         sudo add-apt-repository -y universe
+        sudo add-apt-repository -y ppa:ubuntugis/ubuntugis-unstable
         sudo apt-get update
+
+    - name: Install system dependencies
+      run: |
         sudo apt-get install -y \
           build-essential cmake ninja-build pkg-config \
           qtbase5-dev qttools5-dev libqt5svg5-dev \
@@ -30,56 +34,74 @@ jobs:
           libexiv2-dev libspatialite-dev libpq-dev \
           libqt5serialport5-dev libqt5sql5-sqlite
 
-    - name: Smart CMake configuration
+    - name: CMake configure (debug)
       run: |
         mkdir -p build && cd build
+        set -x
         CMAKE_ARGS=(
           "-DCMAKE_INSTALL_PREFIX=AppDir/usr"
-          "-DWITH_INTERNAL_LIBZIP=ON"  
-          "-DUSE_OPENCL=OFF"          
+          "-DWITH_INTERNAL_LIBZIP=ON"
+          "-DUSE_OPENCL=OFF"
           "-DCMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake"
           "-DGDAL_CONFIG=/usr/bin/gdal-config"
-          "-DPROJ_INCLUDE_DIR=/usr/include/proj"
-          "-DCMAKE_FIND_DEBUG_MODE=1"  
+          "-DPROJ_INCLUDE_DIR=/usr/include"
+          "-DCMAKE_FIND_DEBUG_MODE=2"
         )
-        cmake .. -G Ninja "${CMAKE_ARGS[@]}"
+        cmake .. -G Ninja \
+          --debug-output \
+          --trace-expand \
+          "${CMAKE_ARGS[@]}"
 
-    - name: Build and package
+    - name: Build and package (verbeux)
       run: |
         cd build
-        ninja install
+        ninja -v install
         wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
         chmod +x linuxdeploy-x86_64.AppImage
         ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
 
-    - name: Upload artifact and logs
+    - name: Collect logs
+      run: |
+        mkdir -p ci-logs
+        cp build/CMake*.log ci-logs/ || true
+        cp build/*.log ci-logs/ || true
+
+    - name: Upload appimage artifact
       uses: actions/upload-artifact@v4
       with:
         name: qgis-appimage
         path: |
           build/*.AppImage
-          build/CMake*.log
+
+    - name: Upload debug logs
+      uses: actions/upload-artifact@v4
+      with:
+        name: debug-logs
+        path: ci-logs
 
   build-windows-zip:
     name: Build Windows ZIP
-    runs-on: windows-2022
+    runs-on: [self-hosted, windows-2022]
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
     - name: Clean existing vcpkg
+      shell: cmd
       run: if exist vcpkg rmdir /s /q vcpkg
 
     - name: Setup vcpkg
+      shell: cmd
       run: |
         git clone https://github.com/microsoft/vcpkg
         cd vcpkg && .\bootstrap-vcpkg.bat
-      shell: cmd
 
     - name: Install dependencies
+      shell: cmd
       run: .\vcpkg\vcpkg install --triplet x64-windows --manifest
 
     - name: Smart Windows build
+      shell: cmd
       run: |
         mkdir build
         cd build
@@ -91,7 +113,6 @@ jobs:
           -DENABLE_TESTS=OFF
         ninja
         cpack -G ZIP
-      shell: cmd
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
@@ -101,7 +122,7 @@ jobs:
 
   post-build:
     name: Post-Build Analysis
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, ubuntu-latest]
     needs: [build-linux-appimage, build-windows-zip]
     steps:
     - name: Dependency Report
