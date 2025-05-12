@@ -1,141 +1,102 @@
-# .github/workflows/ci.yml
-name: "CI → Build ▶️ Test ▶️ PR"
+name: "CI QGIS - Multiplatform"
 
 on:
   push:
-    branches:
-      - master
-      - 'issue-*'
-      - 'release-*'
-  pull_request: {}
+    branches: [master, 'issue-*', 'release-*']
+  pull_request:
   workflow_dispatch:
-    inputs:
-      build-type:
-        description: 'Build type (Debug/Release)'
-        required: false
-        default: 'Release'
-
-permissions:
-  contents: read
 
 jobs:
   build-linux-appimage:
-    name: Build QGIS AppImage
-    runs-on: ubuntu-latest
-
+    name: Build AppImage (Ubuntu 22.04)
+    runs-on: ubuntu-22.04
     steps:
-      - name: 🐣 Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: 📦 Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential cmake ninja-build pkg-config \
-            qtbase5-dev qtdeclarative5-dev qttools5-dev-tools \
-            qscintilla-qt5-dev libqca-qt5-2-dev \
-            libgdal-dev libproj-dev libgeos++-dev libspatialindex-dev \
-            libsqlite3-dev libqt5svg5-dev libqt5webkit5-dev \
-            autoconf automake libtool xz-utils wget
-          sudo apt-get build-dep -y qgis
+    - name: Install dependencies
+      run: |
+        sudo add-apt-repository -y universe
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential cmake ninja-build pkg-config \
+          qtbase5-dev qttools5-dev qttools5-dev-tools \
+          libqscintilla2-qt5-dev libqca-qt5-2-dev \
+          libgdal-dev libproj-dev libgeos++-dev libspatialindex-dev \
+          libsqlite3-dev libqt5svg5-dev libqt5webkit5-dev \
+          autoconf automake libtool xz-utils wget \
+          libqt5opengl5-dev libqt5serialport5-dev
 
-      - name: ⚙️ Configure & Install into AppDir
-        run: |
-          mkdir -p build AppDir/usr
-          cd build
-          cmake .. \
-            -G Ninja \
-            -DCMAKE_INSTALL_PREFIX=$(pwd)/../AppDir/usr \
-            -DWITH_QGIS_SERVER=OFF \
-            -DWITH_GRASS=OFF \
-            -DWITH_3D=OFF \
-            -DWITH_QT5=ON
-          ninja install
-          cd ..
+    - name: Configure build
+      run: |
+        mkdir build && cd build
+        cmake .. \
+          -G Ninja \
+          -DCMAKE_INSTALL_PREFIX=AppDir/usr \
+          -DQT_VERSION_MAJOR=5 \
+          -DWITH_QGIS_SERVER=OFF \
+          -DWITH_GRASS=OFF
 
-      - name: 🚀 Download linuxdeploy with Qt plugin
-        run: |
-          wget -qO linuxdeploy.AppImage \
-            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          chmod +x linuxdeploy.AppImage
-          wget -qO linuxdeploy-plugin-qt.AppImage \
-            https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-          chmod +x linuxdeploy-plugin-qt.AppImage
+    - name: Build and package
+      run: |
+        cd build
+        ninja install
+        wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+        chmod +x linuxdeploy-x86_64.AppImage
+        ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
 
-      - name: 📦 Generate AppImage
-        run: |
-          ./linuxdeploy.AppImage \
-            --appdir AppDir \
-            --plugin qt \
-            --output appimage
-
-      - name: 📤 Upload AppImage
-        uses: actions/upload-artifact@v4
-        with:
-          name: qgis-linux-appimage
-          path: '*.AppImage'
-
-      - name: 📝 Upload build logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-build-logs
-          path: |
-            build/CMakeFiles/CMakeOutput.log
-            build/CMakeFiles/CMakeError.log
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: qgis-appimage
+        path: build/*.AppImage
 
   build-windows-zip:
-    name: Build QGIS ZIP (Windows)
-    runs-on: windows-latest
-
+    name: Build Windows ZIP
+    runs-on: windows-2022
     steps:
-      - name: 🐣 Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: ⚙️ Install CMake & Ninja
-        uses: lukka/get-cmake@v4.0.0
-        with:
-          cmakeVersion: '3.31.6'
-          ninjaVersion: '1.11.1'
+    - name: Setup vcpkg
+      run: |
+        git clone https://github.com/Microsoft/vcpkg
+        .\vcpkg\bootstrap-vcpkg.bat
 
-      - name: 🧰 Setup vcpkg
-        uses: ms-azuretools/vcpkg-prepare@v1
-        with:
-          vcpkgDirectory: '${{ github.workspace }}/vcpkg'
+    - name: Install dependencies
+      run: .\vcpkg\vcpkg install --triplet x64-windows --manifest
 
-      - name: 📦 Install dependencies via vcpkg
-        run: |
-          vcpkg install --triplet x64-windows --manifest
+    - name: Configure and build
+      run: |
+        mkdir build
+        cd build
+        cmake .. `
+          -G "Ninja" `
+          -DCMAKE_TOOLCHAIN_FILE="../vcpkg/scripts/buildsystems/vcpkg.cmake" `
+          -DCMAKE_BUILD_TYPE=Release
+        ninja
+        cpack -G ZIP
 
-      - name: 🏗️ Configure & Build
-        run: |
-          mkdir build
-          cd build
-          cmake .. `
-            -G Ninja `
-            -DCMAKE_TOOLCHAIN_FILE="$env:GITHUB_WORKSPACE/vcpkg/scripts/buildsystems/vcpkg.cmake" `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DWITH_QT6=ON `
-            -DENABLE_TESTS=OFF `
-            -DCMAKE_INSTALL_PREFIX=install
-          ninja
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: qgis-windows
+        path: build/*.zip
 
-      - name: 📦 Package with CPack
-        run: |
-          cd build
-          cpack -G ZIP -C Release
+  error-reports:
+    name: Error Reports
+    if: ${{ failure() }}
+    runs-on: ubuntu-latest
+    needs: [build-linux-appimage, build-windows-zip]
+    steps:
+    - name: Download logs
+      uses: actions/download-artifact@v4
+      with:
+        pattern: '*-logs'
+        path: error-logs
 
-      - name: 📤 Upload Windows ZIP
-        uses: actions/upload-artifact@v4
-        with:
-          name: qgis-win64-zip
-          path: build/*.zip
-
-      - name: 📝 Upload build logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-build-logs
-          path: |
-            build/CMakeFiles/CMakeOutput.log
-            build/CMakeFiles/CMakeError.log
+    - name: Upload combined logs
+      uses: actions/upload-artifact@v4
+      with:
+        name: full-error-report
+        path: error-logs
