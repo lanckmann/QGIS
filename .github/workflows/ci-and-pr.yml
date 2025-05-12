@@ -59,9 +59,13 @@ jobs:
 
       - name: 🔧 Install CMake ≥ 3.23
         run: |
+          sudo apt-get update
           sudo apt-get install -y software-properties-common wget lsb-release \
-                                  apt-transport-https ca-certificates
-          sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys DE19EB17684BA42D
+                                  apt-transport-https ca-certificates gnupg
+          # Importer les deux clés Kitware
+          sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys \
+            DE19EB17684BA42D 16FAAD7AF99A65E2
+          # Ajouter le repo Kitware
           sudo apt-add-repository "deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main"
           sudo apt-get update
           sudo apt-get install -y cmake
