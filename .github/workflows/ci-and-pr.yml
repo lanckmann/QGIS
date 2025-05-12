@@ -8,7 +8,12 @@ on:
       - 'issue-*'
       - 'release-*'
   pull_request: {}
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      build-type:
+        description: 'Build type (Debug/Release)'
+        required: false
+        default: 'Release'
 
 permissions:
   contents: read
@@ -28,7 +33,7 @@ jobs:
           sudo apt-get install -y \
             build-essential cmake ninja-build pkg-config \
             qtbase5-dev qtdeclarative5-dev qttools5-dev-tools \
-            libqscintilla2-qt5-dev libqca-qt5-2-dev \
+            qscintilla-qt5-dev libqca-qt5-2-dev \
             libgdal-dev libproj-dev libgeos++-dev libspatialindex-dev \
             libsqlite3-dev libqt5svg5-dev libqt5webkit5-dev \
             autoconf automake libtool xz-utils wget
@@ -43,20 +48,25 @@ jobs:
             -DCMAKE_INSTALL_PREFIX=$(pwd)/../AppDir/usr \
             -DWITH_QGIS_SERVER=OFF \
             -DWITH_GRASS=OFF \
-            -DWITH_3D=OFF
+            -DWITH_3D=OFF \
+            -DWITH_QT5=ON
           ninja install
           cd ..
 
-      - name: 🚀 Download linuxdeploy
+      - name: 🚀 Download linuxdeploy with Qt plugin
         run: |
           wget -qO linuxdeploy.AppImage \
             https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           chmod +x linuxdeploy.AppImage
+          wget -qO linuxdeploy-plugin-qt.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy-plugin-qt.AppImage
 
       - name: 📦 Generate AppImage
         run: |
           ./linuxdeploy.AppImage \
             --appdir AppDir \
+            --plugin qt \
             --output appimage
 
       - name: 📤 Upload AppImage
@@ -64,6 +74,15 @@ jobs:
         with:
           name: qgis-linux-appimage
           path: '*.AppImage'
+
+      - name: 📝 Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build-logs
+          path: |
+            build/CMakeFiles/CMakeOutput.log
+            build/CMakeFiles/CMakeError.log
 
   build-windows-zip:
     name: Build QGIS ZIP (Windows)
@@ -74,30 +93,31 @@ jobs:
         uses: actions/checkout@v4
 
       - name: ⚙️ Install CMake & Ninja
-        uses: lukka/get-cmake@latest
+        uses: lukka/get-cmake@v4.0.0
         with:
           cmakeVersion: '3.31.6'
-          ninjaVersion: 'latest'
+          ninjaVersion: '1.11.1'
 
-      - name: 🧰 Setup vcpkg (manifest mode)
-        uses: ./.github/actions/setup-vcpkg
+      - name: 🧰 Setup vcpkg
+        uses: ms-azuretools/vcpkg-prepare@v1
+        with:
+          vcpkgDirectory: '${{ github.workspace }}/vcpkg'
 
       - name: 📦 Install dependencies via vcpkg
         run: |
-          # Installe tous les paquets listés dans vcpkg.json pour x64-windows
           vcpkg install --triplet x64-windows --manifest
 
       - name: 🏗️ Configure & Build
         run: |
           mkdir build
           cd build
-          cmake .. \
-            -G Ninja \
-            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DWITH_QT6=ON \
-            -DENABLE_TESTS=OFF \
-            -DCMAKE_INSTALL_PREFIX=$(pwd)/install
+          cmake .. `
+            -G Ninja `
+            -DCMAKE_TOOLCHAIN_FILE="$env:GITHUB_WORKSPACE/vcpkg/scripts/buildsystems/vcpkg.cmake" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DWITH_QT6=ON `
+            -DENABLE_TESTS=OFF `
+            -DCMAKE_INSTALL_PREFIX=install
           ninja
 
       - name: 📦 Package with CPack
@@ -110,3 +130,12 @@ jobs:
         with:
           name: qgis-win64-zip
           path: build/*.zip
+
+      - name: 📝 Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build-logs
+          path: |
+            build/CMakeFiles/CMakeOutput.log
+            build/CMakeFiles/CMakeError.log
