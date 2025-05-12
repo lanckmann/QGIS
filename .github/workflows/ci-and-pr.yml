@@ -7,6 +7,9 @@ on:
     branches: [master, 'issue-*', 'release-*']
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   build-linux-appimage:
     name: Build AppImage (Ubuntu 22.04)
@@ -40,8 +43,6 @@ jobs:
                 echo "Aucun paquet trouvé pour $pkg"
               fi
             done
-          else
-            echo "Pas de CMakeError.log, skip auto-detect"
           fi
           cd ..
 
@@ -55,6 +56,15 @@ jobs:
             libsqlite3-dev libqt5webkit5-dev libqt5opengl5-dev \
             libexiv2-dev libspatialite-dev libpq-dev \
             libqt5serialport5-dev libqt5sql5-sqlite
+
+      - name: 🔧 Install CMake ≥ 3.23
+        run: |
+          sudo apt-get install -y software-properties-common wget lsb-release \
+                                  apt-transport-https ca-certificates
+          sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys DE19EB17684BA42D
+          sudo apt-add-repository "deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main"
+          sudo apt-get update
+          sudo apt-get install -y cmake
 
       - name: CMake configure (debug)
         run: |
@@ -74,7 +84,7 @@ jobs:
             --trace-expand \
             "${CMAKE_ARGS[@]}"
 
-      - name: Build and package (verbeux)
+      - name: Build and package (verbose)
         run: |
           cd build
           ninja -v install
@@ -158,8 +168,3 @@ jobs:
             artifacts.data.artifacts.forEach(a => {
               console.log(`Artifact: ${a.name} (${a.size} bytes)`);
             });
-      - name: Upload Dependency Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: dependency-report
-          path: dependency-report.txt
