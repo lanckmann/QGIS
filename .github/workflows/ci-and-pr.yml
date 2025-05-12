@@ -5,194 +5,109 @@ on:
   push:
     branches:
       - master
-      - 'release-**'
       - 'issue-*'
-  pull_request: {}
+      - 'release-*'
   workflow_dispatch: {}
 
 permissions:
   contents: read
 
 jobs:
-  linux-build:
-    name: Build & Smoke-test QGIS (APT via UbuntuGIS PPA)
-    runs-on: [self-hosted, linux, x64]
+  build-linux-appimage:
+    name: Build QGIS AppImage
+    runs-on: ubuntu-latest
+
     steps:
-      - name: 🐣 Checkout
+      - name: 🐣 Checkout code
         uses: actions/checkout@v4
 
-      - name: 🔧 Installer prerequisites APT
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y software-properties-common wget apt-transport-https
-
-      - name: ➕ Ajouter le PPA UbuntuGIS Unstable
-        run: sudo add-apt-repository ppa:ubuntugis/ubuntugis-unstable -y
-
-      - name: 📦 Installer QGIS + dépendances GIS
+      - name: 📦 Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            qgis \
-            python3-qgis \
-            qgis-plugin-grass \
-            ccache
+            build-essential cmake ninja-build pkg-config \
+            qtbase5-dev qtdeclarative5-dev qttools5-dev-tools \
+            qscintilla2-qt5-dev libqca-qt5-2-dev \
+            libgdal-dev libproj-dev libgeos++-dev libspatialindex-dev \
+            libsqlite3-dev libqt5svg5-dev libqt5webkit5-dev \
+            autoconf automake libtool xz-utils wget
+          # Auto-installer les dépendences Ubuntu pour builder QGIS
+          sudo apt-get build-dep -y qgis
 
-      - name: 💾 Configurer CCache (PCH)
-        run: ccache --set-config sloppiness=pch_defines,time_macros
-
-      - name: ⚙️ Vérifier version QGIS
-        run: qgis --version
-
-      - name: 🖥️ Smoke-test QGIS sous Xvfb et capture screenshot
+      - name: ⚙️ Configure & Install into AppDir
         run: |
-          sudo apt-get install -y xvfb imagemagick
-          Xvfb :99 -screen 0 1024x768x24 &
-          export DISPLAY=:99
-          qgis --nologo &
-          sleep 5
-          import -window root screenshot.png
-          pkill qgis
+          mkdir -p build AppDir/usr
+          cd build
+          cmake .. \
+            -G Ninja \
+            -DCMAKE_INSTALL_PREFIX=$(pwd)/../AppDir/usr \
+            -DWITH_QGIS_SERVER=OFF \
+            -DWITH_GRASS=OFF \
+            -DWITH_3D=OFF
+          ninja install
+          cd ..
 
-      - name: 📤 Artifact – screenshot & logs
+      - name: 🚀 Download linuxdeploy
+        run: |
+          wget -qO linuxdeploy.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy.AppImage
+
+      - name: 📦 Generate AppImage
+        run: |
+          ./linuxdeploy.AppImage \
+            --appdir AppDir \
+            --output appimage
+
+      - name: 📤 Upload AppImage
         uses: actions/upload-artifact@v4
         with:
-          name: qgis-linux-artefacts
-          path: |
-            screenshot.png
-            ~/.cache/ccache
-
-  windows-qt6:
-    name: Build & Test (Windows)
+          name: qgis-linux-appimage
+          path: '*.AppImage'
+          
+  build-windows-zip:
+    name: Build QGIS ZIP (Windows)
     runs-on: windows-latest
-    env:
-      VCPKG_CLEAN_AFTER_BUILD: "1"
+
     steps:
-      - name: Checkout
+      - name: 🐣 Checkout code
         uses: actions/checkout@v4
 
-
-      - name: Uninstall system CMake (idempotent)
-        shell: powershell
-        run: |
-          choco uninstall cmake.install -y || Write-Host "CMake not présent"
-
-      - name: Install CMake & Ninja
-        uses: lukka/get-cmake@latest
+      - name: ⚙️ Install CMake & Ninja
+        uses: lukka/get-cmake@v4
         with:
-          cmakeVersion: 3.31.6
-          ninjaVersion: latest
+          cmakeVersion: '3.31.6'
+          ninjaVersion: 'latest'
 
-      - name: Activate MSVC
-        uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Setup vcpkg
+      - name: 🧰 Setup vcpkg (manifest mode)
         uses: ./.github/actions/setup-vcpkg
 
-      - name: Download WinFlexBison
-        uses: robinraju/release-downloader@v1.12
-        with:
-          repository: lexxmark/winflexbison
-          fileName: '*.zip'
-          tag: v2.5.24
-          extract: true
-
-      - name: Configure ccache
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          max-size: 1G
-          key: build-ccache-win64-qt6-${{ github.ref_name }}
-          restore: true
-          save: true
-
-      - name: Tune ccache
-        shell: bash
-        run: ccache --set-config sloppiness=pch_defines,time_macros
-
-      - name: Configure & build
-        shell: bash
+      - name: 📦 Install dependencies via vcpkg
         run: |
-          BUILD_DIR=$(cygpath "${{ github.workspace }}/build")
-          SOURCE_DIR=$(cygpath "${{ github.workspace }}")
-          cmake -S "$SOURCE_DIR" -B "$BUILD_DIR" -G Ninja \
+          # installe tous les paquets listés dans vcpkg.json pour x64-windows
+          vcpkg install --triplet x64-windows --manifest
+
+      - name: 🏗️ Configure & Build
+        run: |
+          mkdir build
+          cd build
+          cmake .. \
+            -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake \
             -DCMAKE_BUILD_TYPE=Release \
-            -DWITH_VCPKG=ON \
-            -DVCPKG_CLEAN_AFTER_BUILD=ON \
-            -DBUILD_WITH_QT6=ON \
+            -DWITH_QT6=ON \
             -DENABLE_TESTS=OFF \
-            -DUSE_CCACHE=ON \
-            -DFLEX_EXECUTABLE="${SOURCE_DIR}/win_flex.exe" \
-            -DBISON_EXECUTABLE="${SOURCE_DIR}/win_bison.exe" \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DWITH_QTWEBENGINE=OFF \
-            -DWITH_DRACO=OFF
-          cmake --build "$BUILD_DIR" --config Release
+            -DCMAKE_INSTALL_PREFIX=$(pwd)/install
+          ninja
 
-      - name: Bundle (CPack)
-        shell: bash
-        run: cmake --build "${{ github.workspace }}/build" --config Release --target bundle
-
-      - name: Upload Windows bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: qgis-windows-qt6
-          path: build/*-win64.zip
-
-      - name: Upload Windows logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: qgis-windows-logs
-          path: build/CMakeFiles/*log
-
-  mingw64-build:
-    name: Build (MinGW64)
-    runs-on: ubuntu-latest
-    container:
-      image: elpaso/qgis-deps-mingw:latest
-    steps:
-      - name: 🐣 Checkout
-        uses: actions/checkout@v4
-
-      - name: 🔨 Installer dépendances & build QGIS (MinGW)
+      - name: 📦 Package with CPack
         run: |
-          printf '[main]\ngpgcheck=True\ninstallonly_limit=3\nclean_requirements_on_remove=True\nbest=False\nskip_if_unavailable=True\ntsflags=nodocs' > /etc/dnf/dnf.conf
-          dnf install -y --nogpgcheck $(grep -v '^#' <<'PKGS'
-          mingw64-dlfcn mingw64-exiv2 mingw64-fcgi ccache mingw64-gcc-c++ mingw64-gdal mingw64-gdb
-          mingw64-GeographicLib mingw64-geos mingw64-gsl mingw64-libzip mingw64-postgresql mingw64-proj
-          mingw64-python3 mingw64-python3-affine mingw64-python3-chardet mingw64-python3-dateutil
-          mingw64-python3-flask mingw64-python3-gdal mingw64-python3-GeographicLib mingw64-python3-homography
-          mingw64-python3-idna mingw64-python3-lxml mingw64-python3-markupsafe mingw64-python3-numpy
-          mingw64-python3-opencv mingw64-python3-OWSLib mingw64-python3-pillow mingw64-python3-psycopg2
-          mingw64-python3-PyQt-builder mingw64-python3-pytz mingw64-python3-pyyaml mingw64-python3-qscintilla-qt5
-          mingw64-python3-qt5 mingw64-python3-requests mingw64-python3-shapely mingw64-python3-urllib3
-          mingw64-qca-qt5 mingw64-qscintilla-qt5 mingw64-qt5-qmake mingw64-qt5-qtactiveqt mingw64-qt5-qtbase
-          mingw64-qt5-qtimageformats mingw64-qt5-qtlocation mingw64-qt5-qtmultimedia mingw64-qt5-qtscript
-          mingw64-qt5-qtserialport mingw64-qt5-qtsvg mingw64-qt5-qttools mingw64-qt5-qttools-tools
-          mingw64-qt5-qttranslations mingw64-qt5-qtwebkit mingw64-qt5-qtxmlpatterns mingw64-qtkeychain-qt5
-          mingw64-quazip-qt5 mingw64-qwt-qt5 mingw64-sip mingw64-spatialindex mingw64-sqlite mingw64-svg2svgt
-          mingw64-zstd bison cmake findutils flex gcc-c++ gdal-devel git make proj-devel python-devel
-          python-qt5 python3-qscintilla-qt5 qt5-linguist qt5-qtbase-devel sqlite-devel wget
-          xorg-x11-server-Xvfb zip
-          PKGS)
-          chmod +x ms-windows/mingw/build.sh
-          ./ms-windows/mingw/build.sh x86_64 nodebug
+          cd build
+          # génère un ZIP Release contenant install/
+          cpack -G ZIP -C Release
 
-      - name: 🎁 Créer et zipper la build
-        run: |
-          DISTROOT=build_mingw64/dist/usr/x86_64-w64-mingw32/sys-root/mingw
-          mkdir -p dist_debug
-          find "$DISTROOT" -name '*.debug' -exec mv {} dist_debug/ \;
-          mv "$DISTROOT" QGIS-Portable
-          zip -r qgis-portable-win64.zip QGIS-Portable
-          (cd dist_debug && zip -r qgis-portable-win64-debugsym.zip .)
-
-      - name: 📤 Upload MinGW64 builds
+      - name: 📤 Upload Windows ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: QGIS MinGW64
-          path: |
-            qgis-portable-win64.zip
-            qgis-portable-win64-debugsym.zip
-            build_mingw64/ms-windows/osgeo4w/package.log
+          name: qgis-win64-zip
+          path: build/*.zip
