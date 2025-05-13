@@ -1171,6 +1171,8 @@ class NumberWidgetWrapper(WidgetWrapper):
 class DistanceWidgetWrapper(WidgetWrapper):
 
     def __init__(self, *args, **kwargs):
+        if not hasattr(self.__class__,'_savedUnits'):
+            self.__class__._savedUnits = {}
         super().__init__(*args, **kwargs)
         """
         .. deprecated:: 3.4
@@ -1187,6 +1189,12 @@ class DistanceWidgetWrapper(WidgetWrapper):
     def createWidget(self):
         if self.dialogType in (DIALOG_STANDARD, DIALOG_BATCH):
             widget = DistanceInputPanel(self.parameterDefinition())
+            name= self.parameterDefinition().name()
+            saved_unit=self.__class__._savedUnits(name)
+            if saved_unit is not None:
+                widget.setUnitParameterValue(saved_unit)
+            widget.units_combo.currentIndexChanged.connect(lambda idx,n=name,w=widget:self.__class__._savedUnits.__setitem__(n,w.units_combo.itemData(idx)))
+
             widget.hasChanged.connect(lambda: self.widgetValueHasChanged.emit(self))
             return widget
         else:
