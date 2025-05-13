@@ -99,12 +99,12 @@ bool QgsTransformAlgorithm::prepareAlgorithm( const QVariantMap &parameters, Qgs
     mTransformContext.addCoordinateOperation( sourceCrs(), mDestCrs, mCoordOp, false );
     QRegExp rx( "\\+grids=([^\\s]+)" );
     int pos = 0;
-    while ( (pos = rx.indexIn(mCoordOp, pos)) != -1 )
+    while ( ( pos = rx.indexIn( mCoordOp, pos ) ) != -1 )
     {
-      QString gridName = rx.cap(1);
-      QString absPath = QgsProjUtils::findProjDataFile(gridName);
+      QString gridName = rx.cap( 1 );
+      QString absPath = QgsProjUtils::findProjDataFile( gridName );
       if ( !absPath.isEmpty() )
-        mCoordOp.replace(gridName, absPath);
+        mCoordOp.replace( gridName, absPath );
       pos += rx.matchedLength();
     }
   }
