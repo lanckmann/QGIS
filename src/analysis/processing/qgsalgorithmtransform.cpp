@@ -94,6 +94,20 @@ bool QgsTransformAlgorithm::prepareAlgorithm( const QVariantMap &parameters, Qgs
   mTransformContext = context.transformContext();
   mConvertCurveToSegments = parameterAsBoolean( parameters, QStringLiteral( "CONVERT_CURVED_GEOMETRIES" ), context );
   mCoordOp = parameterAsString( parameters, QStringLiteral( "OPERATION" ), context );
+  if ( !mCoordOp.isEmpty() )
+  {
+    mTransformContext.addCoordinateOperation( sourceCrs(), mDestCrs, mCoordOp, false );
+    QRegExp rx( "\\+grids=([^\\s]+)" );
+    int pos = 0;
+    while ( (pos = rx.indexIn(mCoordOp, pos)) != -1 )
+    {
+      QString gridName = rx.cap(1);
+      QString absPath = QgsProjUtils::findProjDataFile(gridName);
+      if ( !absPath.isEmpty() )
+        mCoordOp.replace(gridName, absPath);
+      pos += rx.matchedLength();
+    }
+  }
   return true;
 }
 
