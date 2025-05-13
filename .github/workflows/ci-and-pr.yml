@@ -12,8 +12,10 @@ on:
 
 jobs:
   build-linux:
-    name: Build & Test (Ubuntu 22.04)
-    runs-on: ubuntu-22.04
+    name: Build & Test (Self-Hosted Linux X64)
+    runs-on: [ self-hosted, Linux, X64 ]
+    env:
+      CCACHE_SLOPPINESS: pch_defines,time_macros
 
     steps:
       - name: Checkout repository
@@ -56,7 +58,9 @@ jobs:
             libqscintilla2-qt5-dev \
             libhdf5-dev \
             libnetcdf-dev \
-            libcurl4-openssl-dev
+            libcurl4-openssl-dev \
+            ocl-icd-opencl-dev \
+            opencl-headers
 
       - name: Configure with CMake
         run: |
