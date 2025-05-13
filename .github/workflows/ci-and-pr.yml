@@ -41,7 +41,7 @@ jobs:
             qtwebengine5-dev \
             gdal-bin \
             libgdal-dev \
-            ogr2ogr \
+            gdal-data \
             proj-bin \
             libproj-dev \
             proj-data \
@@ -75,7 +75,8 @@ jobs:
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DPROJ_DIR=/usr \
-            -DGDAL_DIR=/usr
+            -DGDAL_DIR=/usr \
+            -DProtobuf_DIR=/usr/lib/x86_64-linux-gnu/cmake/Protobuf
 
       - name: Build
         run: ninja -C build -j$(nproc)
