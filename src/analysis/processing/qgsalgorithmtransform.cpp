@@ -102,7 +102,7 @@ bool QgsTransformAlgorithm::prepareAlgorithm( const QVariantMap &parameters, Qgs
     while ( ( pos = rx.indexIn( mCoordOp, pos ) ) != -1 )
     {
       QString gridName = rx.cap( 1 );
-      QString absPath = QgsProjUtils::findGridFile(gridName);
+      QString absPath = QgsProjUtils::findGridFile( gridName );
       if ( !absPath.isEmpty() )
         mCoordOp.replace( gridName, absPath );
       pos += rx.matchedLength();
