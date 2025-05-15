@@ -27,14 +27,17 @@ jobs:
       - name: Prepare APT for Kitware
         run: |
           sudo apt-get update
-          sudo apt-get install -y apt-transport-https ca-certificates gnupg
+          sudo apt-get install -y apt-transport-https ca-certificates
 
       
-      - name: Add Kitware APT repository
+      - name: Add Kitware APT key
         run: |
           curl -fsSL https://apt.kitware.com/keys/kitware-archive-latest.asc \
-            | sudo gpg --dearmor -o /usr/share/keyrings/kitware-archive-keyring.gpg
-          echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ jammy main' \
+            | sudo apt-key add -
+
+      - name: Add Kitware APT repository
+        run: |
+          echo 'deb https://apt.kitware.com/ubuntu/ jammy main' \
             | sudo tee /etc/apt/sources.list.d/kitware.list
 
       - name: Install system dependencies
@@ -45,7 +48,7 @@ jobs:
             build-essential \
             ca-certificates \
             ccache \
-            cmake                 # depuis Kitware, version ≥3.23
+            cmake                 # désormais CM ≥3.23 depuis Kitware
             ninja-build \
             git \
             python3 \
