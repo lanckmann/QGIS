@@ -129,17 +129,22 @@ jobs:
 
       - name: Provide ninja-build alias
         run: |
-          # Certaines configs cherchent 'ninja-build' au lieu de 'ninja'
+         
           sudo ln -sf "$(which ninja)" /usr/bin/ninja-build
 
-      - name: Setup 4 Gi swap (éviter les OOM kills)
+      - name: Setup swapfile (4 G)
+        if: runner.os == 'Linux'
         run: |
-          if [ ! -f /swapfile ]; then
+          
+          if ! grep -q '/swapfile' /proc/swaps; then
+            echo 'Création et activation du swap…'
             sudo fallocate -l 4G /swapfile
             sudo chmod 600 /swapfile
             sudo mkswap /swapfile
+            sudo swapon /swapfile
+          else
+            echo 'Swapfile déjà activé, on skip cette étape.'
           fi
-          sudo swapon /swapfile
 
       - name: Configure with CMake
         run: |
