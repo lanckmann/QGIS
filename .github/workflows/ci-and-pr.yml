@@ -23,6 +23,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Add Kitware APT key
+        run: |
+          curl -fsSL https://apt.kitware.com/keys/kitware-archive-latest.asc | sudo apt-key add -
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
