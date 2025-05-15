@@ -1,179 +1,186 @@
-# .github/workflows/ci.yml
-name: "CI QGIS - Smart Build"
+name: Linux Build & Test
 
 on:
-  workflow_dispatch:
   push:
-    branches: [master, 'issue-*', 'release-*']
+    branches:
+      - 'issue-*'
+      - main
   pull_request:
-
-permissions:
-  contents: read
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
-  build-linux-appimage:
-    name: Build AppImage (Ubuntu 22.04)
-    runs-on: [self-hosted, linux, x64]
+  build-linux:
+    name: Build & Test (Self-Hosted Linux X64)
+    runs-on: [ self-hosted, Linux, X64 ]
+    env:
+      CCACHE_SLOPPINESS: pch_defines,time_macros
+
     steps:
-      - name: Checkout code with submodules
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          fetch-depth: 0
 
-      - name: Add UbuntuGIS PPA for PROJ ≥ 8.1
+      - name: Prepare APT for Kitware
         run: |
-          sudo add-apt-repository -y universe
-          sudo add-apt-repository -y ppa:ubuntugis/ubuntugis-unstable
           sudo apt-get update
+          sudo apt-get install -y apt-transport-https ca-certificates
 
-      - name: Auto-detect & install missing deps
+      - name: Add Kitware APT key
         run: |
-          mkdir -p build && cd build
-          cmake .. -G Ninja -DCMAKE_FIND_DEBUG_MODE=TRUE || true
-          if [ -f CMakeFiles/CMakeError.log ]; then
-            missing=$(grep "Could NOT find" CMakeFiles/CMakeError.log \
-              | sed -E 's/.*Could NOT find ([^ ]+).*/\1/' \
-              | sort -u)
-            for pkg in $missing; do
-              echo "Recherche apt pour $pkg"
-              candidate=$(apt-cache search "^lib${pkg,,}" | head -n1 | cut -d' ' -f1)
-              if [ -n "$candidate" ]; then
-                sudo apt-get install -y $candidate
-              else
-                echo "Aucun paquet trouvé pour $pkg"
-              fi
-            done
-          fi
-          cd ..
+          curl -fsSL https://apt.kitware.com/keys/kitware-archive-latest.asc \
+            | sudo apt-key add -
+
+      - name: Add Kitware APT repository
+        run: |
+          echo 'deb https://apt.kitware.com/ubuntu/ jammy main' \
+            | sudo tee /etc/apt/sources.list.d/kitware.list
 
       - name: Install system dependencies
         run: |
+          sudo apt-get update
           sudo apt-get install -y \
-            build-essential cmake ninja-build pkg-config \
-            qtbase5-dev qttools5-dev libqt5svg5-dev \
-            libqscintilla2-qt5-dev libqca-qt5-2-dev libzip-dev \
-            libgdal-dev libproj-dev libgeos++-dev libspatialindex-dev \
-            libsqlite3-dev libqt5webkit5-dev libqt5opengl5-dev \
-            libexiv2-dev libspatialite-dev libpq-dev \
-            libqt5serialport5-dev libqt5sql5-sqlite
+            bison \
+            build-essential \
+            ca-certificates \
+            ccache \
+            cmake \
+            ninja-build \
+            git \
+            python3 \
+            python3-pyqt5 \
+            python3-pyqt5.qsci \
+            qtbase5-dev \
+            qttools5-dev-tools \
+            libqt5svg5-dev \
+            libqt5webkit5-dev \
+            libqt5serialport5-dev \
+            qtwebengine5-dev \
+            gdal-bin \
+            libgdal-dev \
+            gdal-data \
+            proj-bin \
+            libproj-dev \
+            proj-data \
+            flex \
+            pkg-config \
+            libzip-dev \
+            protobuf-compiler \
+            libprotobuf-dev \
+            libexiv2-dev \
+            libspatialindex-dev \
+            libqscintilla2-qt5-dev \
+            libhdf5-dev \
+            libnetcdf-dev \
+            libcurl4-openssl-dev \
+            ocl-icd-opencl-dev \
+            opencl-headers \
+            pandoc \
+            pdal \
+            poppler-utils \
+            pyqt5-dev \
+            pyqt5-dev-tools \
+            pyqt5.qsci-dev \
+            python3-all-dev \
+            python3-autopep8 \
+            python3-dev \
+            python3-gdal \
+            python3-jinja2 \
+            python3-lxml \
+            python3-mock \
+            python3-nose2 \
+            python3-owslib \
+            python3-plotly \
+            python3-psycopg2 \
+            python3-pygments \
+            python3-pyproj \
+            python3-pyqt5 \
+            python3-pyqt5.qsci \
+            python3-pyqt5.qtmultimedia \
+            python3-pyqt5.qtpositioning \
+            python3-pyqt5.qtserialport \
+            python3-pyqt5.qtsql \
+            python3-pyqt5.qtsvg \
+            python3-pyqt5.qtwebkit \
+            python3-pyqtbuild \
+            python3-sip \
+            python3-termcolor \
+            python3-yaml \
+            qt3d-assimpsceneimport-plugin \
+            qt3d-defaultgeometryloader-plugin \
+            qt3d-gltfsceneio-plugin \
+            qt3d-scene2d-plugin \
+            qt3d5-dev \
+            qtkeychain-qt5-dev \
+            qtmultimedia5-dev \
+            qtpositioning5-dev \
+            qttools5-dev \
+            qttools5-dev-tools \
+            sip-tools \
+            spawn-fcgi \
+            xauth \
+            xfonts-100dpi \
+            xfonts-75dpi \
+            xfonts-base \
+            xfonts-scalable \
+            xvfb
 
-      - name: 🔧 Install CMake ≥ 3.23
+      - name: Provide ninja-build alias
         run: |
-          sudo apt-get update
-          sudo apt-get install -y wget apt-transport-https ca-certificates
+          # Certaines configs cherchent 'ninja-build' au lieu de 'ninja'
+          sudo ln -sf "$(which ninja)" /usr/bin/ninja-build
 
-          # Fetch and install Kitware's keyring
-          wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc \
-            | sudo gpg --dearmor -o /usr/share/keyrings/kitware-archive-keyring.gpg
-
-          # Add the Kitware APT entry, signed by the new key
-          echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] \
-            https://apt.kitware.com/ubuntu $(lsb_release -cs) main" \
-            | sudo tee /etc/apt/sources.list.d/kitware.list
-
-          # Update and install CMake from Kitware
-          sudo apt-get update
-          sudo apt-get install -y cmake
-
-      - name: CMake configure (debug)
+      - name: Setup 4 Gi swap (éviter les OOM kills)
         run: |
-          mkdir -p build && cd build
-          set -x
-          CMAKE_ARGS=(
-            "-DCMAKE_INSTALL_PREFIX=AppDir/usr"
-            "-DWITH_INTERNAL_LIBZIP=ON"
-            "-DUSE_OPENCL=OFF"
-            "-DCMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake"
-            "-DGDAL_CONFIG=/usr/bin/gdal-config"
-            "-DPROJ_INCLUDE_DIR=/usr/include"
-            "-DCMAKE_FIND_DEBUG_MODE=2"
-          )
-          cmake .. -G Ninja \
-            --debug-output \
-            --trace-expand \
-            "${CMAKE_ARGS[@]}"
+          if [ ! -f /swapfile ]; then
+            sudo fallocate -l 4G /swapfile
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+          fi
+          sudo swapon /swapfile
 
-      - name: Build and package (verbose)
+      - name: Configure with CMake
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DWITH_GUI=ON \
+            -DWITH_SERVER=OFF \
+            -DWITH_BINDINGS=ON \
+            -DWITH_PYQGIS=ON \
+            -DWITH_GRASS=OFF \
+            -DWITH_QWTPOLAR=OFF \
+            -DWITH_CUSTOM_WIDGETS=OFF \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DPROJ_DIR=/usr \
+            -DGDAL_DIR=/usr \
+            -DProtobuf_DIR=/usr/lib/x86_64-linux-gnu/cmake/Protobuf
+
+      - name: Build
+        run: ninja -C build -j2
+
+      - name: Package build output
+        run: |
+          cd build/output
+          tar czf qgis-linux-debug.tar.gz bin lib
+
+      - name: Run tests
         run: |
           cd build
-          ninja -v install
-          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          chmod +x linuxdeploy-x86_64.AppImage
-          ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
+          ctest --output-on-failure
 
-      - name: Collect logs
-        run: |
-          mkdir -p ci-logs
-          cp build/CMake*.log ci-logs/ || true
-          cp build/*.log ci-logs/ || true
-
-      - name: Upload appimage artifact
+      - name: Upload build artefact & logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: qgis-appimage
-          path: build/*.AppImage
-
-      - name: Upload debug logs
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-logs
-          path: ci-logs
-
-  build-windows-zip:
-    name: Build Windows ZIP
-    runs-on: [self-hosted, windows, x64]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Clean existing vcpkg
-        shell: cmd
-        run: if exist vcpkg rmdir /s /q vcpkg
-
-      - name: Setup vcpkg
-        shell: cmd
-        run: |
-          git clone https://github.com/microsoft/vcpkg
-          cd vcpkg && .\bootstrap-vcpkg.bat
-
-      - name: Install dependencies
-        shell: cmd
-        run: .\vcpkg\vcpkg install --triplet x64-windows --manifest
-
-      - name: Smart Windows build
-        shell: cmd
-        run: |
-          mkdir build
-          cd build
-          cmake .. ^
-            -G "Ninja" ^
-            -DCMAKE_TOOLCHAIN_FILE="../vcpkg/scripts/buildsystems/vcpkg.cmake" ^
-            -DWITH_OPENCL=OFF ^
-            -DWITH_3D=OFF ^
-            -DENABLE_TESTS=OFF
-          ninja
-          cpack -G ZIP
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: qgis-windows
-          path: build/*.zip
-
-  post-build:
-    name: Post-Build Analysis
-    runs-on: [self-hosted, linux, x64]
-    needs: [build-linux-appimage, build-windows-zip]
-    steps:
-      - name: Dependency Report
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: context.runId,
-            });
-            artifacts.data.artifacts.forEach(a => {
-              console.log(`Artifact: ${a.name} (${a.size} bytes)`);
-            });
+          name: qgis-linux-debug
+          path: |
+            build/output/qgis-linux-debug.tar.gz
+            build/Testing/Temporary/LastTest.log
+            build/CMakeFiles/CMakeOutput.log
+            build/CMakeFiles/CMakeError.log
