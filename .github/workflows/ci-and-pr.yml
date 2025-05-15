@@ -156,17 +156,23 @@ jobs:
       - name: Build
         run: ninja -C build -j$(nproc)
 
+      - name: Package build output
+        run: |
+          cd build/output
+          tar czf qgis-linux-debug.tar.gz bin lib
+
       - name: Run tests
         run: |
           cd build
           ctest --output-on-failure
 
-      - name: Upload logs on failure
-        if: failure()
+      - name: Upload build artefact & logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: qgis-linux-logs
+          name: qgis-linux-debug
           path: |
+            build/output/qgis-linux-debug.tar.gz
             build/Testing/Temporary/LastTest.log
             build/CMakeFiles/CMakeOutput.log
             build/CMakeFiles/CMakeError.log
