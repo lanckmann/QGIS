@@ -65,7 +65,6 @@ jobs:
             libproj-dev \
             proj-data \
             flex \
-            bison \
             pkg-config \
             libzip-dev \
             protobuf-compiler \
@@ -133,6 +132,15 @@ jobs:
           # Certaines configs cherchent 'ninja-build' au lieu de 'ninja'
           sudo ln -sf "$(which ninja)" /usr/bin/ninja-build
 
+      - name: Setup 4 Gi swap (éviter les OOM kills)
+        run: |
+          if [ ! -f /swapfile ]; then
+            sudo fallocate -l 4G /swapfile
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+          fi
+          sudo swapon /swapfile
+
       - name: Configure with CMake
         run: |
           mkdir -p build
@@ -154,7 +162,7 @@ jobs:
             -DProtobuf_DIR=/usr/lib/x86_64-linux-gnu/cmake/Protobuf
 
       - name: Build
-        run: ninja -C build -j$(nproc)
+        run: ninja -C build -j2
 
       - name: Package build output
         run: |
