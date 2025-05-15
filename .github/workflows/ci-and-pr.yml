@@ -23,13 +23,11 @@ jobs:
         with:
           fetch-depth: 0
 
-    
       - name: Prepare APT for Kitware
         run: |
           sudo apt-get update
           sudo apt-get install -y apt-transport-https ca-certificates
 
-      
       - name: Add Kitware APT key
         run: |
           curl -fsSL https://apt.kitware.com/keys/kitware-archive-latest.asc \
@@ -48,7 +46,7 @@ jobs:
             build-essential \
             ca-certificates \
             ccache \
-            cmake                 # désormais CM ≥3.23 depuis Kitware
+            cmake \
             ninja-build \
             git \
             python3 \
@@ -129,6 +127,11 @@ jobs:
             xfonts-base \
             xfonts-scalable \
             xvfb
+
+      - name: Provide ninja-build alias
+        run: |
+          # Certaines configs cherchent 'ninja-build' au lieu de 'ninja'
+          sudo ln -sf "$(which ninja)" /usr/bin/ninja-build
 
       - name: Configure with CMake
         run: |
