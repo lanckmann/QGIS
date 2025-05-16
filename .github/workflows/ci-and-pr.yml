@@ -129,13 +129,11 @@ jobs:
 
       - name: Provide ninja-build alias
         run: |
-         
           sudo ln -sf "$(which ninja)" /usr/bin/ninja-build
 
       - name: Setup swapfile (4 G)
         if: runner.os == 'Linux'
         run: |
-          
           if ! grep -q '/swapfile' /proc/swaps; then
             echo 'Création et activation du swap…'
             sudo fallocate -l 4G /swapfile
@@ -153,6 +151,7 @@ jobs:
           cmake .. \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_INSTALL_PREFIX=$PWD/output \
             -DWITH_GUI=ON \
             -DWITH_SERVER=OFF \
             -DWITH_BINDINGS=ON \
@@ -169,10 +168,13 @@ jobs:
       - name: Build
         run: ninja -C build -j2
 
+      - name: Install into output prefix
+        run: ninja -C build install
+
       - name: Package build output
         run: |
-          cd build/output
-          tar czf qgis-linux-debug.tar.gz bin lib
+          cd build
+          tar czf qgis-linux-debug.tar.gz output
 
       - continue-on-error: true
         run: |
@@ -185,7 +187,7 @@ jobs:
         with:
           name: qgis-linux-debug
           path: |
-            build/output/qgis-linux-debug.tar.gz
+            build/qgis-linux-debug.tar.gz
             build/Testing/Temporary/LastTest.log
             build/CMakeFiles/CMakeOutput.log
             build/CMakeFiles/CMakeError.log
