@@ -151,7 +151,7 @@ jobs:
           cmake .. \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_INSTALL_PREFIX=$PWD/output \
+            -DCMAKE_INSTALL_PREFIX=$(pwd)/../output \
             -DWITH_GUI=ON \
             -DWITH_SERVER=OFF \
             -DWITH_BINDINGS=ON \
