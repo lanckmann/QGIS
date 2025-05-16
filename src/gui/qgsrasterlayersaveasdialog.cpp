@@ -476,7 +476,7 @@ QgsRectangle QgsRasterLayerSaveAsDialog::outputRectangle() const
 {
   QgsRectangle ex = mExtentGroupBox->outputExtent();
 
-  if ( mUi->snapToGridCheckBox->isChecked() && mRasterLayer )
+  if ( mSnapToGridCheckBox->isChecked() && mRasterLayer )
   {
     double xres = mRasterLayer->rasterUnitsPerPixelX();
     double yres = mRasterLayer->rasterUnitsPerPixelY();
