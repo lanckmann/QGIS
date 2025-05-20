@@ -174,7 +174,7 @@ jobs:
       - name: Package build output
         run: |
           cd build
-          tar czf qgis-linux-debug.tar.gz output
+          tar czhf qgis-linux-debug.tar.gz --dereference output
 
       - continue-on-error: true
         run: |
