@@ -157,6 +157,7 @@ jobs:
             -DWITH_BINDINGS=ON \
             -DWITH_PYQGIS=ON \
             -DWITH_GRASS=OFF \
+            -DWITH_GRASS7=OFF \ 
             -DWITH_QWTPOLAR=OFF \
             -DWITH_CUSTOM_WIDGETS=OFF \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
