@@ -201,3 +201,13 @@ QSize QgsExtentGroupBox::ratio() const
 {
   return mWidget->ratio();
 }
+
+void QgsExtentGroupBox::setSnapReferenceLayer( QgsRasterLayer *layer )
+{
+  mWidget->setSnapReferenceLayer( layer );
+}
+
+void QgsExtentGroupBox::setSnapToGrid( bool enabled )
+{
+  mWidget->setSnapToGrid( enabled );
+}

@@ -177,6 +177,14 @@ QgsRasterLayerSaveAsDialog::QgsRasterLayerSaveAsDialog( QgsRasterLayer *rasterLa
   mExtentGroupBox->setOriginalExtent( mDataProvider->extent(), mLayerCrs );
   mExtentGroupBox->setCurrentExtent( mCurrentExtent, mCurrentCrs );
   mExtentGroupBox->setOutputExtentFromOriginal();
+  
+  // Set up snap to grid functionality
+  if ( mRasterLayer )
+  {
+    mExtentGroupBox->setSnapReferenceLayer( mRasterLayer );
+    mExtentGroupBox->setSnapToGrid( true ); // Enable by default for raster export
+  }
+  
   connect( mExtentGroupBox, &QgsExtentGroupBox::extentChanged, this, &QgsRasterLayerSaveAsDialog::extentChanged );
 
   recalcResolutionSize();

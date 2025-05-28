@@ -29,10 +29,12 @@
 #include "qgsprintlayout.h"
 #include "qgsbookmarkmodel.h"
 #include "qgsreferencedgeometry.h"
+#include "qgsrasterlayer.h"
 
 #include <QMenu>
 #include <QAction>
 #include <QRegularExpression>
+#include <cmath>
 
 QgsExtentWidget::QgsExtentWidget( QWidget *parent, WidgetStyle style )
   : QWidget( parent )
@@ -100,6 +102,7 @@ QgsExtentWidget::QgsExtentWidget( QWidget *parent, WidgetStyle style )
   connect( mCurrentExtentButton, &QAbstractButton::clicked, this, &QgsExtentWidget::setOutputExtentFromCurrent );
   connect( mOriginalExtentButton, &QAbstractButton::clicked, this, &QgsExtentWidget::setOutputExtentFromOriginal );
   connect( mButtonDrawOnCanvas, &QAbstractButton::clicked, this, &QgsExtentWidget::setOutputExtentFromDrawOnCanvas );
+  connect( mSnapToGridCheckBox, &QCheckBox::toggled, this, &QgsExtentWidget::onSnapToGridToggled );
 
   switch ( style )
   {
@@ -222,6 +225,12 @@ void QgsExtentWidget::setOutputExtent( const QgsRectangle &r, const QgsCoordinat
         extent = r;
       }
     }
+  }
+
+  // Apply snap to grid if enabled
+  if ( mSnapToGrid && mSnapReferenceLayer )
+  {
+    extent = snapExtentToGrid( extent );
   }
 
   int decimals = 4;
@@ -684,4 +693,71 @@ void QgsExtentWidget::showEvent( QShowEvent * )
     }
     mFirstShow = false;
   }
+}
+
+void QgsExtentWidget::setSnapToGrid( bool enabled )
+{
+  mSnapToGrid = enabled;
+  mSnapToGridCheckBox->setChecked( enabled );
+  
+  // Apply snapping to current extent if enabled
+  if ( enabled && mSnapReferenceLayer && 
+       ( mExtentState == CurrentExtent || mExtentState == ProjectLayerExtent ) )
+  {
+    QgsRectangle currentExtent = outputExtent();
+    QgsRectangle snappedExtent = snapExtentToGrid( currentExtent );
+    if ( snappedExtent != currentExtent )
+    {
+      setOutputExtent( snappedExtent, mOutputCrs, mExtentState );
+    }
+  }
+}
+
+void QgsExtentWidget::setSnapReferenceLayer( QgsRasterLayer *layer )
+{
+  mSnapReferenceLayer = layer;
+}
+
+void QgsExtentWidget::onSnapToGridToggled()
+{
+  setSnapToGrid( mSnapToGridCheckBox->isChecked() );
+}
+
+QgsRectangle QgsExtentWidget::snapExtentToGrid( const QgsRectangle &extent ) const
+{
+  if ( !mSnapToGrid || !mSnapReferenceLayer )
+    return extent;
+
+  // Get the reference layer's extent and resolution
+  const QgsRectangle referenceExtent = mSnapReferenceLayer->extent();
+  double xRes, yRes;
+  
+  if ( mSnapReferenceLayer->dataProvider()->capabilities() & Qgis::RasterInterfaceCapability::Size )
+  {
+    const int width = mSnapReferenceLayer->width();
+    const int height = mSnapReferenceLayer->height();
+    
+    if ( width <= 0 || height <= 0 )
+      return extent;
+      
+    xRes = referenceExtent.width() / width;
+    yRes = referenceExtent.height() / height;
+    
+    // Ensure resolution is valid (not zero or negative)
+    if ( xRes <= 0 || yRes <= 0 )
+      return extent;
+  }
+  else
+  {
+    // Fallback if we can't get size info
+    return extent;
+  }
+
+  // Apply the snapping logic from the issue description
+  double xMinSnapped = referenceExtent.xMinimum() + std::floor( ( extent.xMinimum() - referenceExtent.xMinimum() ) / xRes ) * xRes;
+  double yMinSnapped = referenceExtent.yMinimum() + std::floor( ( extent.yMinimum() - referenceExtent.yMinimum() ) / yRes ) * yRes;
+  double xMaxSnapped = referenceExtent.xMinimum() + std::ceil( ( extent.xMaximum() - referenceExtent.xMinimum() ) / xRes ) * xRes;
+  double yMaxSnapped = referenceExtent.yMinimum() + std::ceil( ( extent.yMaximum() - referenceExtent.yMinimum() ) / yRes ) * yRes;
+
+  return QgsRectangle( xMinSnapped, yMinSnapped, xMaxSnapped, yMaxSnapped );
 }

@@ -27,6 +27,7 @@ class QgsCoordinateReferenceSystem;
 class QgsMapLayer;
 class QgsExtentWidget;
 class QgsMapCanvas;
+class QgsRasterLayer;
 
 /**
  * \ingroup gui

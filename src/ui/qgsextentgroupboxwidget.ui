@@ -239,6 +239,19 @@
         </layout>
        </widget>
       </item>
+      <item>
+       <widget class="QCheckBox" name="mSnapToGridCheckBox">
+        <property name="text">
+         <string>Snap to grid</string>
+        </property>
+        <property name="toolTip">
+         <string>When enabled, the extent will be snapped to align with the raster grid to ensure pixel alignment</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>

@@ -32,8 +32,8 @@
 
 class QgsBookmarkManagerProxyModel;
 class QgsCoordinateReferenceSystem;
-class QgsMapLayerProxyModel;
 class QgsMapLayer;
+class QgsRasterLayer;
 
 /**
  * \ingroup gui
@@ -213,6 +213,37 @@ class GUI_EXPORT QgsExtentWidget : public QWidget, private Ui::QgsExtentGroupBox
     void setRatio( QSize ratio ) { mRatio = ratio; }
 
     /**
+     * Returns TRUE if snap to grid is enabled.
+     * \see setSnapToGrid()
+     * \since QGIS 3.40
+     */
+    bool snapToGrid() const { return mSnapToGrid; }
+
+    /**
+     * Sets whether the extent should be snapped to align with a raster grid.
+     * \param enabled set to TRUE to enable snap to grid
+     * \see snapToGrid()
+     * \since QGIS 3.40
+     */
+    void setSnapToGrid( bool enabled );
+
+    /**
+     * Sets the reference layer for grid snapping. The layer's extent and resolution
+     * will be used to define the grid.
+     * \param layer reference raster layer
+     * \see snapReferenceLayer()
+     * \since QGIS 3.40
+     */
+    void setSnapReferenceLayer( QgsRasterLayer *layer );
+
+    /**
+     * Returns the reference layer used for grid snapping.
+     * \see setSnapReferenceLayer()
+     * \since QGIS 3.40
+     */
+    QgsRasterLayer *snapReferenceLayer() const { return mSnapReferenceLayer; }
+
+    /**
      * Clears the widget, setting it to a null value.
      */
     void clear();
@@ -255,6 +286,7 @@ class GUI_EXPORT QgsExtentWidget : public QWidget, private Ui::QgsExtentGroupBox
 
     void extentDrawn( const QgsRectangle &extent );
     void mapToolDeactivated();
+    void onSnapToGridToggled();
 
   private:
     void setOutputExtent( const QgsRectangle &r, const QgsCoordinateReferenceSystem &srcCrs, QgsExtentWidget::ExtentState state );
@@ -295,6 +327,8 @@ class GUI_EXPORT QgsExtentWidget : public QWidget, private Ui::QgsExtentGroupBox
 
     bool mIsValid = false;
     bool mHasFixedOutputCrs = false;
+    bool mSnapToGrid = true;
+    QPointer<QgsRasterLayer> mSnapReferenceLayer;
 
     QRegularExpression mCondensedRe;
 
@@ -306,6 +340,13 @@ class GUI_EXPORT QgsExtentWidget : public QWidget, private Ui::QgsExtentGroupBox
     void setExtentToLayerExtent( const QString &layerId );
 
     QgsMapLayer *mapLayerFromMimeData( const QMimeData *data ) const;
+
+    /**
+     * Snaps the given extent to align with the reference layer's grid.
+     * \param extent extent to snap
+     * \returns snapped extent
+     */
+    QgsRectangle snapExtentToGrid( const QgsRectangle &extent ) const;
 
     friend class TestProcessingGui;
 };
