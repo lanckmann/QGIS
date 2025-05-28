@@ -220,6 +220,47 @@ canvas. To unset a fixed aspect ratio, set the width and height to zero.
 :param ratio: aspect ratio's width and height
 %End
 
+    bool snapToGrid() const;
+%Docstring
+Returns ``True`` if snap to grid is enabled.
+
+.. seealso:: :py:func:`setSnapToGrid`
+
+.. versionadded:: 3.40
+%End
+
+    void setSnapToGrid( bool enabled );
+%Docstring
+Sets whether the extent should be snapped to align with a raster grid.
+
+:param enabled: set to ``True`` to enable snap to grid
+
+.. seealso:: :py:func:`snapToGrid`
+
+.. versionadded:: 3.40
+%End
+
+    void setSnapReferenceLayer( QgsRasterLayer *layer );
+%Docstring
+Sets the reference layer for grid snapping. The layer's extent and
+resolution will be used to define the grid.
+
+:param layer: reference raster layer
+
+.. seealso:: :py:func:`snapReferenceLayer`
+
+.. versionadded:: 3.40
+%End
+
+    QgsRasterLayer *snapReferenceLayer() const;
+%Docstring
+Returns the reference layer used for grid snapping.
+
+.. seealso:: :py:func:`setSnapReferenceLayer`
+
+.. versionadded:: 3.40
+%End
+
     void clear();
 %Docstring
 Clears the widget, setting it to a null value.
